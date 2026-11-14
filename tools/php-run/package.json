@@ -1,0 +1,13 @@
+{
+  "name": "woodex-php-run",
+  "private": true,
+  "type": "module",
+  "description": "Runs the original cPanel PHP application (public_html) locally on PHP-WASM against the imported database.",
+  "scripts": {
+    "start": "node server.mjs"
+  },
+  "dependencies": {
+    "@php-wasm/node": "^3.1.64",
+    "@php-wasm/universal": "^3.1.64"
+  }
+}

@@ -1,0 +1,183 @@
+{
+  "meta": {
+    "source": "fixture.sql",
+    "database": "u128159657_woodexbaks_fixture",
+    "server": "10.11-MariaDB",
+    "php": "7.2.34",
+    "importedAt": "2026-11-14T00:00:00+00:00",
+    "counts": { "products": 3, "categories": 2, "orders": 1, "quotations": 1 }
+  },
+  "categories": [
+    {
+      "id": 1,
+      "parentId": null,
+      "level": 1,
+      "path": "1",
+      "name": "Office Furniture",
+      "slug": "office-furniture",
+      "shortDescription": "<p>Desks and chairs.</p>",
+      "longDescription": "<p>Long copy.</p>",
+      "backgroundImage": null,
+      "mainImage": "assets/images/categories/office.jpg",
+      "isActive": true,
+      "sortOrder": 0,
+      "showInHomeCarousel": true,
+      "showInBestSellers": true
+    },
+    {
+      "id": 2,
+      "parentId": 1,
+      "level": 2,
+      "path": "1/2",
+      "name": "Executive Chairs",
+      "slug": "executive-chairs",
+      "shortDescription": "",
+      "longDescription": "",
+      "backgroundImage": null,
+      "mainImage": null,
+      "isActive": true,
+      "sortOrder": 0,
+      "showInHomeCarousel": false,
+      "showInBestSellers": false
+    }
+  ],
+  "products": [
+    {
+      "id": 34,
+      "name": "Ambassador Executive Chair",
+      "slug": "ambassador-executive-chair",
+      "sku": "EC-10001",
+      "price": 82000,
+      "oldPrice": 95000,
+      "stock": 0,
+      "soldQuantity": 0,
+      "categoryId": 2,
+      "brand": "Woodex",
+      "shortDescription": "<p>Ergonomic executive seating.</p>",
+      "details": "<p>Full product story.</p>",
+      "specifications": [{ "heading": "Design", "description": "Ergonomic back support" }],
+      "images": ["assets/images/products/chair.jpg"],
+      "isBestSeller": true,
+      "isSaleItem": true,
+      "isActive": true,
+      "ratingCount": 4,
+      "ratingSum": 18,
+      "videoEmbed": null
+    },
+    {
+      "id": 35,
+      "name": "Summit Workstation",
+      "slug": "summit-workstation",
+      "sku": "WS-10002",
+      "price": 0,
+      "oldPrice": 0,
+      "stock": 5,
+      "soldQuantity": 0,
+      "categoryId": 1,
+      "brand": "Woodex",
+      "shortDescription": "<p>Team workstation.</p>",
+      "details": "<p>Details.</p>",
+      "specifications": [],
+      "images": [],
+      "isBestSeller": false,
+      "isSaleItem": false,
+      "isActive": true,
+      "ratingCount": 0,
+      "ratingSum": 0,
+      "videoEmbed": null
+    },
+    {
+      "id": 36,
+      "name": "Retired Chair",
+      "slug": "retired-chair",
+      "sku": "EC-99999",
+      "price": 15000,
+      "oldPrice": 0,
+      "stock": 0,
+      "soldQuantity": 0,
+      "categoryId": 2,
+      "brand": "Woodex",
+      "shortDescription": "",
+      "details": "",
+      "specifications": [],
+      "images": [],
+      "isBestSeller": false,
+      "isSaleItem": false,
+      "isActive": false,
+      "ratingCount": 0,
+      "ratingSum": 0,
+      "videoEmbed": null
+    }
+  ],
+  "productCategories": [
+    { "productId": 34, "categoryId": 1 },
+    { "productId": 34, "categoryId": 2 },
+    { "productId": 35, "categoryId": 1 }
+  ],
+  "faqs": [
+    { "id": 1, "scope": "product", "itemId": 34, "question": "Is it ergonomic?", "answer": "<p>Yes.</p>" },
+    { "id": 2, "scope": "category", "itemId": 1, "question": "Do you deliver?", "answer": "<p>Yes, nationwide.</p>" }
+  ],
+  "orders": [
+    {
+      "id": 1,
+      "orderNumber": "ORDER-FIXTURE-1",
+      "customerName": "Test Buyer",
+      "customerEmail": "buyer@example.com",
+      "customerPhone": "+92 300 0000000",
+      "shippingAddress": "1 Test Street, Lahore",
+      "orderDate": "2026-01-10 10:00:00",
+      "total": 164000,
+      "status": "Pending",
+      "paymentStatus": "Pending",
+      "paymentIntentId": null,
+      "paymentMethod": "Stripe",
+      "couponCode": null,
+      "discount": 0,
+      "shipping": 0,
+      "deliveryCompany": null,
+      "trackingUrl": null,
+      "trackingCode": null
+    }
+  ],
+  "orderItems": [
+    { "id": 1, "orderNumber": "ORDER-FIXTURE-1", "productId": 34, "productName": "Ambassador Executive Chair", "price": 82000, "quantity": 2, "subtotal": 164000, "productMissing": false }
+  ],
+  "quotations": [
+    {
+      "id": 1,
+      "quoteNo": "QR-FIXTURE-1",
+      "customerName": "Test Trade",
+      "customerEmail": "trade@example.com",
+      "customerPhone": "+92 300 1111111",
+      "customerAddress": "2 Test Street, Karachi",
+      "subtotal": 100000,
+      "total": 100000,
+      "status": "new",
+      "createdAt": "2026-02-01 09:00:00"
+    }
+  ],
+  "quotationItems": [
+    { "id": 1, "quoteId": 1, "productId": 34, "productName": "Ambassador Executive Chair", "sku": "EC-10001", "unitPrice": 50000, "quantity": 2, "lineTotal": 100000, "image": null, "productMissing": false },
+    { "id": 2, "quoteId": 1, "productId": 1, "productName": "Deleted Chair", "sku": "OLD-1", "unitPrice": 0, "quantity": 1, "lineTotal": 0, "image": null, "productMissing": true }
+  ],
+  "heroSlides": [
+    { "id": 1, "kicker": "Fixture Series", "title": "Best Seller\nSofa Collection", "description": null, "ctaLabel": "SHOP NOW", "ctaUrl": "/shop", "image": "assets/images/heroes/sofa.jpg", "alt": "Sofa", "published": true }
+  ],
+  "blogs": [
+    { "id": 1, "title": "Choosing an office chair", "slug": "choosing-an-office-chair", "metaDescription": "Guide", "image": null, "content": "<p>Guide.</p>", "createdAt": "2026-01-01" }
+  ],
+  "footer": {
+    "tagline": "Make your space work®",
+    "about": "<p>Fixture about text.</p>",
+    "phone": "+92 322 4000 768",
+    "email": "care@example.com",
+    "address": "Lahore, Pakistan",
+    "hours": "Mon–Fri",
+    "copyright": "WoodEx Furniture",
+    "paymentLogos": [],
+    "socialLinks": []
+  },
+  "footerLinks": [{ "section": "shop", "title": "New arrivals", "url": "/new", "sort": 0 }],
+  "brands": ["Woodex"]
+}

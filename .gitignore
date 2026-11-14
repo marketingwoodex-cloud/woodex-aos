@@ -1,0 +1,34 @@
+node_modules/
+dist/
+.env
+.env.local
+*.log
+__pycache__/
+server/data/
+.DS_Store
+coverage/
+.vite/
+.tmp/
+
+# Raw database dumps contain customer PII — never commit them
+db-source/
+
+# The original application IS tracked (it is what gets deployed to Hostinger),
+# minus the local-run plumbing and everything that must never be published.
+/php-source/*
+!/php-source/public_html/
+/php-source/sessions/
+/php-source/.wdx_data/
+/php-source/quarantine/
+/php-source/public_html/sessions/
+/php-source/public_html/wdx_mysqli.php
+/php-source/public_html/**/connection.local.php
+/php-source/public_html/**/*.orig
+/php-source/public_html/**/*.bak
+/php-source/public_html/**/*.sql
+/php-source/public_html/**/*.log
+/php-source/public_html/error_log
+/php-source/public_html/php.ini
+/php-source/public_html/.user.ini
+public_html.part*.zip
+public_html.zip
