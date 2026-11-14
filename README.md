@@ -287,6 +287,13 @@ It parses phpMyAdmin dumps directly (CREATE/ALTER/INSERT, MySQL escaping), mirro
 SQLite and reports orphans, duplicates, JSON validity, totals reconciliation and schema smells.
 Run it against a dump copy — it performs no writes to the source.
 
+The PHP application itself is audited in **`docs/php-code-audit.md`**: 1,407 files recovered from the
+cPanel archive, 295 PHP files / 42,293 lines of project code, the 18-module admin panel (`lbpanel/`),
+the 14 public JSON endpoints, the data layer (310 prepared statements, 35 of 41 tables used) and the
+security findings — including hardcoded live DB credentials, a public `error_log`, and 38 of 79 admin
+scripts that never check a session. `docs/php-source-gap-report.md` records what was missing before
+that upload and where each original artefact lives.
+
 ## Roles & permissions
 
 | Capability | Admin | Manager | Viewer |
