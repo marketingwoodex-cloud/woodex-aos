@@ -1,0 +1,11 @@
+# Local preview contains a generated application, credentials and database snapshot.
+/preview/runtime/
+# Staging secrets and runtime data must never enter Git.
+.woodex-staging.php
+site/sessions/
+site/**/error_log
+site/.user.ini
+site/php.ini
+
+__pycache__/
+*.py[cod]

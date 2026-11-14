@@ -1,0 +1,2 @@
+# Session storage is configured in ../lbpanel/config/session.php with an
+# absolute project-root path. Do not set relative session.save_path here.

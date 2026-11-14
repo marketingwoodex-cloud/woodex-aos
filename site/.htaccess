@@ -1,0 +1,225 @@
+# =========================================================
+# WoodexFurniture.pk - Updated .htaccess (Hostinger)
+# =========================================================
+
+# Prevent Directory Browsing
+Options -Indexes
+
+# Enable Rewrite Engine
+RewriteEngine On
+
+# ---------------------------------------------------------
+# 1) Canonical host: https://woodexfurniture.pk (NO www)
+#    Keep redirects limited to live domain.
+# ---------------------------------------------------------
+# www -> non-www (force https)
+RewriteCond %{HTTP_HOST} ^www\.woodexfurniture\.pk$ [NC]
+RewriteRule ^ https://woodexfurniture.pk%{REQUEST_URI} [L,R=301]
+
+# http -> https (non-www only)
+RewriteCond %{HTTP_HOST} ^woodexfurniture\.pk$ [NC]
+RewriteCond %{HTTPS} !=on
+RewriteRule ^ https://woodexfurniture.pk%{REQUEST_URI} [L,R=301]
+
+# ---------------------------------------------------------
+# 2) PHP sessions path
+#    Session storage is configured in lbpanel/config/session.php
+#    with an absolute project-root path. Avoid relative php_value
+#    directives here because they break nested admin/API scripts.
+# ---------------------------------------------------------
+
+# ---------------------------------------------------------
+# 3) Remove trailing slash for non-directories
+# ---------------------------------------------------------
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteCond %{REQUEST_URI} (.+)/$
+RewriteRule ^ %1 [L,R=301]
+
+# ---------------------------------------------------------
+# 3b) Canonical redirects: frontend .php -> extensionless
+# ---------------------------------------------------------
+RewriteCond %{THE_REQUEST} \s/+index\.php(?:[?\s]|$) [NC]
+RewriteRule ^index\.php$ / [L,R=301]
+
+RewriteCond %{THE_REQUEST} \s/+shop\.php(?:[?\s]|$) [NC]
+RewriteRule ^shop\.php$ shop [L,R=301]
+RewriteCond %{THE_REQUEST} \s/+sale\.php(?:[?\s]|$) [NC]
+RewriteRule ^sale\.php$ sale [L,R=301]
+RewriteCond %{THE_REQUEST} \s/+projects\.php(?:[?\s]|$) [NC]
+RewriteRule ^projects\.php$ projects [L,R=301]
+RewriteCond %{THE_REQUEST} \s/+equotation\.php(?:[?\s]|$) [NC]
+RewriteRule ^equotation\.php$ e-quotation [L,R=301]
+RewriteCond %{THE_REQUEST} \s/+quotation-basket\.php(?:[?\s]|$) [NC]
+RewriteRule ^quotation-basket\.php$ requested-quote [L,R=301]
+RewriteCond %{THE_REQUEST} \s/+quotation-success\.php(?:[?\s]|$) [NC]
+RewriteRule ^quotation-success\.php$ quotation-success [L,R=301]
+RewriteCond %{THE_REQUEST} \s/+material\.php(?:[?\s]|$) [NC]
+RewriteRule ^material\.php$ material-and-color [L,R=301]
+RewriteCond %{THE_REQUEST} \s/+terms\.php(?:[?\s]|$) [NC]
+RewriteRule ^terms\.php$ terms-and-conditions [L,R=301]
+RewriteCond %{THE_REQUEST} \s/+all-blogs\.php(?:[?\s]|$) [NC]
+RewriteRule ^all-blogs\.php$ blog [L,R=301]
+RewriteCond %{THE_REQUEST} \s/+servicelist\.php(?:[?\s]|$) [NC]
+RewriteRule ^servicelist\.php$ services [L,R=301]
+RewriteCond %{THE_REQUEST} \s/+contact\.php(?:[?\s]|$) [NC]
+RewriteRule ^contact\.php$ contact-us [L,R=301]
+RewriteCond %{THE_REQUEST} \s/+checkout\.php(?:[?\s]|$) [NC]
+RewriteRule ^checkout\.php$ checkout [L,R=301]
+RewriteCond %{THE_REQUEST} \s/+about\.php(?:[?\s]|$) [NC]
+RewriteRule ^about\.php$ about-us [L,R=301]
+RewriteCond %{THE_REQUEST} \s/+privacypolicy\.php(?:[?\s]|$) [NC]
+RewriteRule ^privacypolicy\.php$ privacy-policy [L,R=301]
+RewriteCond %{THE_REQUEST} \s/+faqs\.php(?:[?\s]|$) [NC]
+RewriteRule ^faqs\.php$ faqs [L,R=301]
+RewriteCond %{THE_REQUEST} \s/+shipping\.php(?:[?\s]|$) [NC]
+RewriteRule ^shipping\.php$ shipping-and-returns [L,R=301]
+RewriteCond %{THE_REQUEST} \s/+warranty\.php(?:[?\s]|$) [NC]
+RewriteRule ^warranty\.php$ warranty [L,R=301]
+RewriteCond %{THE_REQUEST} \s/+shopppingcart\.php(?:[?\s]|$) [NC]
+RewriteRule ^shopppingcart\.php$ cart [L,R=301]
+RewriteCond %{THE_REQUEST} \s/+showrooms\.php(?:[?\s]|$) [NC]
+RewriteRule ^showrooms\.php$ showrooms [L,R=301]
+RewriteCond %{THE_REQUEST} \s/+b2b\.php(?:[?\s]|$) [NC]
+RewriteRule ^b2b\.php$ b2b [L,R=301]
+RewriteCond %{THE_REQUEST} \s/+factorydirect\.php(?:[?\s]|$) [NC]
+RewriteRule ^factorydirect\.php$ factory-direct [L,R=301]
+RewriteCond %{THE_REQUEST} \s/+deliveryandinstallation\.php(?:[?\s]|$) [NC]
+RewriteRule ^deliveryandinstallation\.php$ delivery-installation [L,R=301]
+RewriteCond %{THE_REQUEST} \s/+projectbased\.php(?:[?\s]|$) [NC]
+RewriteRule ^projectbased\.php$ project-based [L,R=301]
+RewriteCond %{THE_REQUEST} \s/+space_planing\.php(?:[?\s]|$) [NC]
+RewriteRule ^space_planing\.php$ space-planning [L,R=301]
+
+# Dynamic page .php URL canonicalization
+RewriteCond %{THE_REQUEST} \s/+categories/([^?\s]+)\.php(?:[?\s]|$) [NC]
+RewriteRule ^categories/([^/]+)\.php$ categories/$1 [L,R=301]
+RewriteCond %{THE_REQUEST} \s/+blog-single\.php\?slug=([^&\s]+) [NC]
+RewriteRule ^blog-single\.php$ blog/%1? [L,R=301]
+RewriteCond %{THE_REQUEST} \s/+project-detail\.php\?slug=([^&\s]+) [NC]
+RewriteRule ^project-detail\.php$ projects/%1? [L,R=301]
+RewriteCond %{THE_REQUEST} \s/+singleproduct\.php\?proslug=([^&\s]+) [NC]
+RewriteRule ^singleproduct\.php$ shop/%1? [L,R=301]
+RewriteCond %{THE_REQUEST} \s/+servicedetail\.php\?cat_url=([^&\s]+) [NC]
+RewriteRule ^servicedetail\.php$ categories/%1? [L,R=301]
+RewriteCond %{THE_REQUEST} \s/+order_success\.php\?order_number=([^&\s]+) [NC]
+RewriteRule ^order_success\.php$ thank-you/%1? [L,R=301]
+RewriteCond %{THE_REQUEST} \s/+review\.php\?order=([^&\s]+) [NC]
+RewriteRule ^review\.php$ review/%1? [L,R=301]
+RewriteCond %{THE_REQUEST} \s/+review_thanks\.php(?:[?\s]|$) [NC]
+RewriteRule ^review_thanks\.php$ thanks-for-the-review [L,R=301]
+RewriteCond %{THE_REQUEST} \s/+search_results\.php(?:[?\s]|$) [NC]
+RewriteRule ^search_results\.php$ search [L,R=301]
+
+# ---------------------------------------------------------
+# 4) Friendly URL rewrites (no .php in URL)
+# ---------------------------------------------------------
+RewriteRule ^shop$ shop.php [L]
+RewriteRule ^sale$ sale.php [L]
+RewriteRule ^projects$ projects.php [L]
+RewriteRule ^e-quotation$ equotation.php [L]
+RewriteRule ^requested-quote$ quotation-basket.php [L]
+RewriteRule ^quotation-success$ quotation-success.php [L]
+RewriteRule ^material-and-color$ material.php [L]
+RewriteRule ^terms-and-conditions$ terms.php [L]
+RewriteRule ^blog$ all-blogs.php [L]
+RewriteRule ^categories$ servicelist.php [L]
+RewriteRule ^services$ servicelist.php [L]
+RewriteRule ^contact-us$ contact.php [L]
+RewriteRule ^contact$ contact.php [L]
+RewriteRule ^checkout$ checkout.php [L]
+RewriteRule ^about-us$ about.php [L]
+RewriteRule ^privacy-policy$ privacypolicy.php [L]
+RewriteRule ^faqs$ faqs.php [L]
+RewriteRule ^shipping-and-returns$ shipping.php [L]
+RewriteRule ^warranty$ warranty.php [L]
+RewriteRule ^showrooms$ showrooms.php [L]
+RewriteRule ^b2b$ b2b.php [L]
+RewriteRule ^factory-direct$ factorydirect.php [L]
+RewriteRule ^delivery-installation$ deliveryandinstallation.php [L]
+RewriteRule ^project-based$ projectbased.php [L]
+RewriteRule ^space-planning$ space_planing.php [L]
+
+RewriteRule ^cart$ shopppingcart.php [L]
+
+RewriteRule ^categories/([a-zA-Z0-9-]+)$ servicedetail.php?cat_url=$1 [L,QSA]
+RewriteRule ^blog/([a-zA-Z0-9-]+)$ blog-single.php?slug=$1 [L,QSA]
+RewriteRule ^projects/([a-zA-Z0-9-]+)$ project-detail.php?slug=$1 [L,QSA]
+RewriteRule ^shop/([a-zA-Z0-9-]+)$ singleproduct.php?proslug=$1 [L,QSA]
+RewriteRule ^thank-you/([a-zA-Z0-9-]+)$ order_success.php?order_number=$1 [L,QSA]
+RewriteRule ^review/([a-zA-Z0-9-]+)$ review.php?order=$1 [L,QSA]
+RewriteRule ^thanks-for-the-review$ review_thanks.php [L]
+
+# Search page with query string preserved
+RewriteRule ^search$ search_results.php [L,QSA]
+
+# ---------------------------------------------------------
+# 4b) Dynamic SEO redirects (admin-managed 301 mappings)
+#    Fallback for unresolved frontend URLs only.
+# ---------------------------------------------------------
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteCond %{REQUEST_URI} !/(lbpanel|api)(/|$) [NC]
+RewriteRule ^ redirect.php [L,QSA]
+
+# ---------------------------------------------------------
+# 5) Restrict access to sensitive files
+# ---------------------------------------------------------
+<FilesMatch "(^\.|\.env|\.htaccess|\.sql|\.log|\.ini|\.sh|\.bak|\.config|php~)$">
+  Require all denied
+</FilesMatch>
+
+<FilesMatch "\.(bak|config|sql|old|orig|save|swp|swo|ini|log|htpasswd)$">
+  Require all denied
+</FilesMatch>
+
+# Block access to hidden files/folders like .git, .svn etc.
+<FilesMatch "^\.">
+  Require all denied
+</FilesMatch>
+
+# ---------------------------------------------------------
+# 6) Cache control for static assets
+# ---------------------------------------------------------
+<IfModule mod_expires.c>
+  ExpiresActive On
+  ExpiresByType image/jpg "access 1 year"
+  ExpiresByType image/jpeg "access 1 year"
+  ExpiresByType image/png "access 1 year"
+  ExpiresByType image/gif "access 1 year"
+  ExpiresByType image/x-icon "access 1 year"
+  ExpiresByType text/css "access 1 month"
+  ExpiresByType application/javascript "access 1 month"
+</IfModule>
+
+# ---------------------------------------------------------
+# 7) Security headers
+# ---------------------------------------------------------
+<IfModule mod_headers.c>
+  Header always set X-Robots-Tag "noindex, nofollow, noarchive"
+  Header always set X-Frame-Options "SAMEORIGIN"
+  Header always set X-Content-Type-Options "nosniff"
+  Header always set X-XSS-Protection "1; mode=block"
+  Header always set Referrer-Policy "strict-origin-when-cross-origin"
+
+  # Disable ETag Header
+  Header unset ETag
+</IfModule>
+
+FileETag None
+
+# ---------------------------------------------------------
+# 8) Enable Gzip compression
+# ---------------------------------------------------------
+<IfModule mod_deflate.c>
+  AddOutputFilterByType DEFLATE text/html text/plain text/css application/javascript application/json application/xml application/x-javascript
+</IfModule>
+
+# ---------------------------------------------------------
+# 9) Disable TRACE and TRACK methods
+# ---------------------------------------------------------
+RewriteCond %{REQUEST_METHOD} ^(TRACE|TRACK)
+RewriteRule .* - [F]
+
+# =========================================================
+# End
+# =========================================================
