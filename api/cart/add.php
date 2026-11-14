@@ -127,9 +127,16 @@ if (empty($attributesWithLabels) && is_array($attributes)) {
   }
 }
 
-// stock guard
+// Check the requested quantity plus any quantity already in this cart line.
 $availableStock = (int)$product['quantity'];
-if ($quantity > $availableStock) {
+$existingItem = $_SESSION['cart'][$cart_key] ?? null;
+if ($existingItem && ((int)$existingItem['product_id'] !== $product_id ||
+    (int)($existingItem['variation_id'] ?? 0) !== (int)($matchedVariation['id'] ?? 0))) {
+  echo json_encode(['status' => false, 'message' => 'Invalid cart item.']);
+  exit;
+}
+$existingQuantity = $existingItem ? (int)$existingItem['quantity'] : 0;
+if ($existingQuantity + $quantity > $availableStock) {
   echo json_encode(['status' => false, 'message' => 'Not enough stock available.']);
   exit;
 }

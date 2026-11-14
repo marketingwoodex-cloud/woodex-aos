@@ -37,14 +37,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $subtotal = 0;
     $discountableTotal = 0;
 
-    foreach ($_SESSION['cart'] as $product_id => $item) {
+    foreach (($_SESSION['cart'] ?? []) as $item) {
         $itemSubtotal = $item['current_price'] * $item['quantity'];
         $subtotal += $itemSubtotal;
 
         if (
             $appliesTo === 'all' || 
-            ($appliesTo === 'product' && $product_id == $relatedId) || 
-            ($appliesTo === 'treatment' && $item['treatment'] == $relatedId)
+            ($appliesTo === 'product' && (string)($item['product_id'] ?? '') === (string)$relatedId) ||
+            ($appliesTo === 'treatment' && (string)($item['treatment'] ?? '') === (string)$relatedId)
         ) {
             $discountableTotal += $itemSubtotal;
         }
