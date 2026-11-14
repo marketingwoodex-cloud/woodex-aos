@@ -280,6 +280,7 @@ console.log('\nStorefront (public, no session)');
   check('storefront shows catalogue cards', cards.length >= 4, `cards=${cards.length}`);
   check('storefront prices in PKR', /(PKR|Rs)\s?[\d,]{4,}/.test(text()));
   check('storefront footer carries the imported details', text().includes('+92 322 4000 768'));
+  check('storefront surfaces the showroom FAQs', text().includes('Answers before you ask'));
 
   const href = cards[0]?.getAttribute('href');
   check('cards link to product pages', Boolean(href && href.startsWith('/shop/p/')), String(href));

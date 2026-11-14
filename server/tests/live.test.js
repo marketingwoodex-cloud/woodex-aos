@@ -125,7 +125,17 @@ describe('storefront API', () => {
     assert.equal(body.data.gallery.length, 1);
     assert.ok(body.data.gallery[0].url.endsWith('assets/images/products/chair.jpg'));
     assert.equal(body.faqs.length, 1);
+    assert.equal(body.categoryFaqs.length, 1, 'category FAQ inherited from the ancestor category');
     assert.ok(Array.isArray(body.related));
+  });
+
+  it('lists category FAQs for the storefront accordion', async () => {
+    const { status, body } = await request('/api/shop/faqs?limit=5');
+    assert.equal(status, 200);
+    assert.equal(body.data.length, 1);
+    assert.equal(body.data[0].category_slug, 'office-furniture');
+    const scoped = await request('/api/shop/faqs?category=executive-chairs');
+    assert.equal(scoped.body.data.length, 1, 'descendant category inherits the ancestor FAQ');
   });
 
   it('returns the imported footer content', async () => {

@@ -1337,6 +1337,8 @@ a { color: inherit; }
 .faq-list summary::after { content: '+'; color: var(--accent); font-weight: 650; }
 .faq-list details[open] summary::after { content: '−'; }
 .faq-list div { padding-top: 9px; font-size: 12.5px; line-height: 1.65; color: var(--muted); }
+.faq-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 0 32px; }
+.faq-grid details:first-child { border-top: 1px dashed var(--border); }
 
 /* storefront footer */
 .shop-footer { margin-top: 24px; background: #171411; color: #c8bfb2; }

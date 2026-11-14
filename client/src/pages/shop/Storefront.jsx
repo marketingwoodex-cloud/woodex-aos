@@ -56,6 +56,7 @@ export default function Storefront() {
 
   const home = useFetch('/shop/home');
   const { data: categoryData } = useFetch('/shop/categories');
+  const { data: faqData } = useFetch('/shop/faqs?limit=6');
 
   useEffect(() => {
     setSearch(urlQuery);
@@ -273,6 +274,25 @@ export default function Storefront() {
           </>
         )}
       </section>
+
+      {(faqData?.data ?? []).length ? (
+        <section className="shelf">
+          <header className="shelf-head">
+            <div>
+              <p className="eyebrow">From the showroom</p>
+              <h2>Answers before you ask</h2>
+            </div>
+          </header>
+          <div className="faq-list faq-grid">
+            {faqData.data.map((faq) => (
+              <details key={faq.id}>
+                <summary>{faq.question}</summary>
+                <div dangerouslySetInnerHTML={{ __html: faq.answer }} />
+              </details>
+            ))}
+          </div>
+        </section>
+      ) : null}
 
       {!isBrowsing && shelves.onSale?.length ? (
         <section className="shelf">

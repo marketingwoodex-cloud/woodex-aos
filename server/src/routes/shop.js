@@ -192,14 +192,51 @@ router.get(
       [row.id, row.category_id],
     ).map(presentProduct);
 
-    const categoryFaqs = row.category_id
+    // FAQs are stored per category; include the product's category and every
+    // ancestor so a level-3 product still inherits the collection's answers.
+    const categoryIds = [...new Set([row.category_id, ...product.breadcrumb.map((crumb) => crumb.id)].filter(Boolean))];
+    const categoryFaqs = categoryIds.length
       ? liveAll(
-          "SELECT id, question, answer FROM faqs WHERE scope = 'category' AND item_id = ? ORDER BY id LIMIT 5",
-          [row.category_id],
+          `SELECT id, question, answer FROM faqs
+            WHERE scope = 'category' AND item_id IN (${categoryIds.map(() => '?').join(',')})
+            ORDER BY id LIMIT 6`,
+          categoryIds,
         )
       : [];
 
     res.json({ available: true, data: product, faqs, categoryFaqs, related });
+  }),
+);
+
+/** Category-level FAQs — the showroom's answers about delivery, fabrics, lead times. */
+router.get(
+  '/faqs',
+  asyncHandler(async (req, res) => {
+    if (!liveAvailable()) return emptyResponse(res);
+
+    const limit = Math.min(24, Math.max(1, toInt(req.query.limit, 6)));
+    const params = [];
+    let where = "f.scope = 'category'";
+
+    if (req.query.category && req.query.category !== 'all') {
+      const slug = String(req.query.category);
+      const node = liveGet('SELECT id FROM categories WHERE slug = ?', [slug]);
+      if (!node) return res.json({ data: [] });
+      // A collection page shows its own FAQs plus those answered for its parents.
+      const ancestors = categoryBreadcrumb(node.id).map((crumb) => crumb.id);
+      const ids = [...new Set([...categorySubtree(slug), ...ancestors])];
+      where += ` AND f.item_id IN (${ids.map(() => '?').join(',')})`;
+      params.push(...ids);
+    }
+
+    const data = liveAll(
+      `SELECT f.id, f.question, f.answer, f.item_id, c.name AS category_name, c.slug AS category_slug
+         FROM faqs f JOIN categories c ON c.id = f.item_id
+        WHERE ${where}
+        ORDER BY f.id LIMIT ?`,
+      [...params, limit],
+    );
+    res.json({ data });
   }),
 );
 

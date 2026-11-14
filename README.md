@@ -325,12 +325,12 @@ activity (audit log)      integrations      settings
 
 ## Testing
 
-Two suites, 82 checks in total.
+Two suites, 84 checks in total.
 
 ```bash
-npm test          # API — 32 integration tests, throwaway databases
+npm test          # API — 33 integration tests, throwaway databases
 npm start &       # then, in another shell:
-npm run test:ui   # UI — 50 checks against the running app
+npm run test:ui   # UI — 51 checks against the running app
 ```
 
 Boots the real Express app against a temporary database and covers 18 cases:
@@ -341,12 +341,13 @@ issue + revoke, viewer write-blocking, manager admin-blocking, self-deletion gua
 audit trail.
 
 ```
-# tests 32   # pass 32   # fail 0
+# tests 33   # pass 33   # fail 0
 ```
 
 `server/tests/live.test.js` builds a fixture "live" database with the real importer, then
 exercises the storefront (home payload, category subtree filtering, merchandising flags,
-hidden-product 404s, detail payload with breadcrumb/specs/FAQs, footer content), the live
+hidden-product 404s, detail payload with breadcrumb/specs/FAQs, inherited category FAQs,
+footer content), the live
 admin API (overview totals, filters, PATCH validation, orders/quotations with line items,
 viewer write-blocking) and the graceful "database not imported" path.
 
@@ -364,7 +365,7 @@ Routes (admin)    ✓ 14/14 routes render        ✓ new-order modal   ✓ theme
 Role visibility   ✓ viewer read-only           ✓ manager can write  ✓ nav filtered
 Live database     ✓ 171 products listed        ✓ PKR prices        ✓ order drawer
 Storefront        ✓ public /shop               ✓ product pages     ✓ search + sale filter
-50/50 UI checks passed
+51/51 UI checks passed
 ```
 
 Manual smoke test of the running server:
