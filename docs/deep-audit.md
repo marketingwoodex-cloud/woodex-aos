@@ -163,16 +163,43 @@ Other admin findings:
 | `sitemap.xml` 404 | generated from the database (pages + categories + 200 products) | 18 KB, valid XML |
 | Absolute URLs to `http://127.0.0.1` (mixed content) | request built with the browser's real scheme/host | 90 assets on 12 pages, **0 broken** |
 
+## 6b. Security hardening — done in the local copy
+
+Full write-up and the exact cPanel patch for each item: **`tools/security/README.md`**.
+Black-box suite: `tools/security/verify.sh` → **34/34 checks passed**.
+
+| P0 finding | Local copy | Production |
+| --- | --- | --- |
+| `connection.php.orig` downloadable **with the live DB password** | 404 (`server.mjs` block list) | **delete the file, rotate the password** |
+| public `error_log` (3 KB MySQL trace), `php.ini`, `.user.ini`, `database/*.sql` | 404 | `.htaccess` `FilesMatch` + delete |
+| `sessions/` (239 files) inside the web root | 404 | move the folder above `public_html`, delete the old one |
+| 59 of 79 admin scripts unguarded, POS writes unauthenticated | every `/lbpanel/*` request needs a session; AJAX gets `401 {"error":"Authentication required"}` | one guard include per script |
+| no login throttling | 6 failures / 15 min per IP → `429` + `Retry-After` | table or WAF rule |
+| no `session_regenerate_id()` | id rotated after login, data migrated, old file deleted | `session_regenerate_id(true)` in the login block |
+| destructive actions via GET, no CSRF | documented, **not** changed (would alter the app's behaviour) | POST + token per form |
+| SMTP password echoed in the admin UI | documented, **not** changed | move to env/file, mask in the form |
+
+Two extra defects were found and fixed while doing this. Both were **runtime** bugs, not
+application bugs:
+
+1. **Sessions leaked between visitors.** PHP-WASM runs every request in one long-lived PHP process:
+   the previous visitor's session stayed active, PHP's id generator returned the same id twice, and
+   writes landed in the wrong session file (one visitor's cart appeared in another's). The runner now
+   owns session identity — it mints/reads the `WDXSESSID` cookie (HttpOnly, SameSite=Lax) and passes
+   the id to PHP in a header; the guard loads and saves the file for that id and PHP's own cookie and
+   file handling are switched off. The runtime is also recreated per request
+   (`php.enableRuntimeRotation({ maxRequests: 1 })`; `PHP_MAX_REQUESTS=25` for speed).
+2. **The audit crawler logged itself out.** `logout.php` sits in the admin URL list, so everything
+   after it looked unauthenticated (21 false `401`s). Logout is now crawled last; the route audit is
+   back to **453 × 200, 4 × 404, 1 × 500, 1 × 405, 1 × 400 over 460 URLs** — identical to the
+   pre-hardening baseline, i.e. the security layer changes nothing for a legitimate user.
+
 ## 7. What only you can fix (production)
 
-**P0 — security (unchanged from the earlier audit, still open):**
-1. Live DB credentials sit in `connection.php`; rotate the password at Hostinger and remove the
-   hardcoded fallbacks. Public `/error_log` is exposed — delete it and stop writing logs into the web root.
-2. 59 of 79 admin scripts act without a session check; POS writes (refunds, replacements,
-   transactions) are unauthenticated. Add one guard include at the top of every script.
-3. No CSRF tokens, and destructive actions are reachable by GET (`update_order_status`, deletes).
-4. No `session_regenerate_id()` after login, no login throttling, no RBAC between admin/manager.
-5. SMTP password stored in the `email_settings` table and echoed in the admin UI.
+**P0 — security:** the seven items in §6b marked *Production* — in order: rotate the DB password and
+delete `connection.php.orig`, block/remove the leaked files, move `sessions/` out, add the session
+guard to the 59 scripts, `session_regenerate_id()` on login, login throttling, then CSRF + POST-only
+destructive actions and the SMTP secret. The local copy shows what each fixed state looks like.
 
 **P1 — content and correctness:**
 1. Price the 34 zero-priced products (or add a "price on request" mode).
@@ -198,4 +225,5 @@ python3 tools/php-run/rebuild-db.sh                  # fresh database from the d
 .tmp/venv/bin/python tools/media-audit.py            # → docs/media-audit.md
 python3 tools/db-deep-audit.py                       # → docs/database-deep-audit.md
 python3 tools/php-run/crawl.py                       # → docs/route-audit.md (server must be running)
+tools/security/verify.sh http://127.0.0.1:3000       # 34 security checks
 ```

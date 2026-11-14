@@ -11,11 +11,12 @@
  * speaks SQLite, which holds the real 41-table data.
  */
 import { createServer } from 'node:http';
-import { createReadStream, existsSync, readFileSync, statSync, mkdirSync, appendFileSync, writeFileSync } from 'node:fs';
+import { createReadStream, existsSync, readFileSync, statSync, mkdirSync, appendFileSync } from 'node:fs';
 import { execSync } from 'node:child_process';
 import { extname, join, normalize, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { randomBytes } from 'node:crypto';
 import { loadNodeRuntime, useHostFilesystem } from '@php-wasm/node';
 import { PHP, PHPRequestHandler, setPhpIniEntries } from '@php-wasm/universal';
 
@@ -219,25 +220,14 @@ function resolveTarget(pathname) {
 }
 
 /**
- * Apache/php-fpm run every script with the working directory set to that
- * script's own folder, and several pages depend on it: the POS module and the
- * category manager do `require '../config/connection.php'`, which PHP resolves
- * against the cwd only. PHP-WASM keeps a single cwd for the runtime, so a
- * script that is asked to include such a path from the document root fails
- * ("Failed opening required '../config/connection.php'", or a silent
- * include_once that leaves $conn null and then "Call to a member function
- * query() on null"). The prepend file restores the real-server behaviour.
+ * Everything PHP needs before the application runs lives in
+ * tools/security/guard.php (Apache-style cwd, admin authentication, session
+ * rotation, baseline headers). It is registered below as auto_prepend_file.
  */
-const prependFile = join(repo, '.tmp', 'php-prepend.php');
-writeFileSync(prependFile, `<?php
-$__wdx_script = $_SERVER['SCRIPT_FILENAME'] ?? '';
-if ($__wdx_script !== '' && @is_file($__wdx_script)) {
-    @chdir(dirname($__wdx_script));
-}
-unset($__wdx_script);
-`);
+const prependFile = join(repo, 'tools', 'security', 'guard.php');
 
-const phpRuntimeId = await loadNodeRuntime(phpVersion, { emscriptenOptions: { processId: 1 } });
+const bootRuntime = () => loadNodeRuntime(phpVersion, { emscriptenOptions: { processId: 1 } });
+const phpRuntimeId = await bootRuntime();
 const php = new PHP(phpRuntimeId);
 useHostFilesystem(php);
 
@@ -256,7 +246,13 @@ setPhpIniEntries(php, {
   'session.save_path': sessionDir,
   'session.gc_maxlifetime': '86400',
   'session.cookie_httponly': '1',
-  // Run each script from its own directory, exactly like Apache (see above).
+  // The application never sees session cookies: tools/security/guard.php owns
+  // the cookie (the runtime otherwise emits a second, stale Set-Cookie).
+  'session.use_cookies': '0',
+  'session.use_only_cookies': '0',
+  'session.use_strict_mode': '0',
+  'session.cookie_samesite': 'Lax',
+  // cwd per script + admin auth guard + session rotation (tools/security/guard.php).
   auto_prepend_file: prependFile,
 });
 
@@ -272,6 +268,21 @@ function withPhpLock(task) {
   phpQueue = run.then(() => undefined, () => undefined);
   return run;
 }
+
+/**
+ * PHP-WASM keeps one long-lived PHP process, and that process leaks state
+ * between requests: a session started by the previous visitor stays active, the
+ * previous request's Cookie header stays in $_SERVER, and the session-id
+ * generator happily returns the same id twice. Guarding all of that from PHP
+ * proved unreliable (see tools/security/guard.php for what is still done), so
+ * the runtime is recreated for every request — the same guarantee Apache gives
+ * with a clean process per request. Set PHP_MAX_REQUESTS=25 to trade isolation
+ * for speed.
+ */
+php.enableRuntimeRotation({
+  maxRequests: Number(process.env.PHP_MAX_REQUESTS || 1),
+  recreateRuntime: () => bootRuntime(),
+});
 
 const handler = new PHPRequestHandler({
   php,
@@ -309,6 +320,45 @@ function rewriteAbsoluteUrls(html, origin) {
     .replace(/(?<![@\w.-])https?:\/\/(?:localhost|127\.0\.0\.1):\d+(?=\/)/gi, `${scheme}://${host}`);
 }
 
+/**
+ * Session identity is decided HERE, not by PHP.
+ *
+ * The PHP-WASM runtime reuses one PHP process, and its session module leaks
+ * state between requests: the previous visitor's session stays active, the id
+ * generator returns the same id twice, and writes land in the wrong file. The
+ * guard (tools/security/guard.php) therefore reads a session id from this
+ * header and writes the session data to the file for that id, while the runner
+ * owns the cookie. One visitor, one id, always.
+ */
+const SESSION_COOKIE = 'WDXSESSID';
+
+function sessionIdFromRequest(req, res) {
+  const cookieHeader = String(req.headers.cookie || '');
+  const match = cookieHeader.match(new RegExp(`(?:^|;\\s*)${SESSION_COOKIE}=([A-Fa-f0-9]{16,128})`));
+  const sid = match ? match[1].toLowerCase() : randomBytes(16).toString('hex');
+  res.setHeader('Set-Cookie', `${SESSION_COOKIE}=${sid}; Path=/; HttpOnly; SameSite=Lax`);
+  return sid;
+}
+
+/**
+ * Files that must never be served. The delivered web root contains an
+ * `error_log` (a MySQL access-denied trace), `connection.php.orig` — a backup of
+ * the connection file with the live database password in it — `php.ini`,
+ * `.user.ini`, a `database/*.sql` schema dump and 239 session files under
+ * `sessions/`. On the cPanel host Apache serves all of them (see
+ * tools/security/README.md for the .htaccess that fixes that).
+ */
+const BLOCKED_FILE_RX = /(^|\/)(error_log|php_errors?\.log|\.env[^/]*|\.user\.ini|php\.ini|\.htaccess|\.htpasswd|composer\.(json|lock)|web\.config)$/i;
+const BLOCKED_EXT_RX = /\.(log|orig|bak|backup|sql|sqlite|db|ini|zip|tar|gz|tgz|env|sh|py|mjs|yml|yaml)$/i;
+
+function isBlockedPath(pathname) {
+  const path = decodeURIComponent(pathname);
+  if (path.includes('/../')) return true;
+  if (path.startsWith('/sessions/')) return true;
+  if (BLOCKED_FILE_RX.test(path) || BLOCKED_EXT_RX.test(path)) return true;
+  return path.split('/').some((segment) => segment.startsWith('.') && segment !== '' && segment !== '..');
+}
+
 /** Missing images get a neutral placeholder instead of a broken-image icon. */
 const IMAGE_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.webp', '.gif', '.svg']);
 
@@ -332,6 +382,46 @@ function placeholderImage(label) {
 </svg>`);
 }
 
+/**
+ * Login throttling. The application has none: an attacker can try passwords as
+ * fast as the server answers. Failures are counted per client IP; after
+ * LOGIN_FAIL_LIMIT wrong passwords inside LOGIN_WINDOW_MS the form is refused
+ * with 429 until the window passes.
+ */
+const LOGIN_FAIL_LIMIT = Number(process.env.LOGIN_FAIL_LIMIT || 6);
+const LOGIN_WINDOW_MS = Number(process.env.LOGIN_WINDOW_MS || 15 * 60 * 1000);
+const loginFailures = new Map();
+
+function clientIp(req) {
+  const forwarded = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim();
+  return forwarded || req.socket?.remoteAddress || 'unknown';
+}
+
+function loginLockRemaining(ip) {
+  const entry = loginFailures.get(ip);
+  if (!entry) return 0;
+  const age = Date.now() - entry.first;
+  if (age > LOGIN_WINDOW_MS) {
+    loginFailures.delete(ip);
+    return 0;
+  }
+  if (entry.count < LOGIN_FAIL_LIMIT) return 0;
+  return Math.ceil((LOGIN_WINDOW_MS - age) / 1000);
+}
+
+function recordLogin(ip, succeeded) {
+  if (succeeded) {
+    loginFailures.delete(ip);
+    return;
+  }
+  const entry = loginFailures.get(ip);
+  if (!entry || Date.now() - entry.first > LOGIN_WINDOW_MS) {
+    loginFailures.set(ip, { count: 1, first: Date.now() });
+  } else {
+    entry.count += 1;
+  }
+}
+
 const server = createServer(async (req, res) => {
   const started = Date.now();
   try {
@@ -342,6 +432,12 @@ const server = createServer(async (req, res) => {
       const xml = Buffer.from(sitemapXml(`${origin.scheme}://${origin.host}`), 'utf8');
       res.writeHead(200, { 'Content-Type': 'application/xml; charset=utf-8', 'Content-Length': xml.length });
       res.end(xml);
+      return;
+    }
+
+    if (isBlockedPath(url.pathname)) {
+      res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
+      res.end('Not Found');
       return;
     }
 
@@ -399,6 +495,30 @@ const server = createServer(async (req, res) => {
       if (typeof value === 'string') headers[key] = value;
     }
     headers['content-length'] = String(body.length);
+    // PHP-WASM keeps the superglobals of the previous request alive; a header
+    // that is absent now (Cookie, X-Requested-With) still reads as present.
+    // Mark the absent ones so tools/security/guard.php can clear them.
+    headers['x-wdx-cookie'] = req.headers.cookie ? 'present' : 'none';
+    headers['x-wdx-ajax'] = req.headers['x-requested-with'] ? 'present' : 'none';
+    headers['x-wdx-sid'] = sessionIdFromRequest(req, res);
+
+    const isLoginPost = target.url === '/lbpanel/index.php' && req.method === 'POST';
+    const ip = clientIp(req);
+    if (isLoginPost) {
+      const wait = loginLockRemaining(ip);
+      if (wait > 0) {
+        appendFileSync(errorLog, `[${new Date().toISOString()}] login throttled for ${ip} (${wait}s)\n`);
+        res.writeHead(429, {
+          'Content-Type': 'text/html; charset=utf-8',
+          'Retry-After': String(wait),
+        });
+        res.end(`<!doctype html><meta charset="utf-8"><title>Too many attempts</title>`
+          + `<div style="font-family:Arial,sans-serif;max-width:520px;margin:80px auto;text-align:center">`
+          + `<h2>Too many login attempts</h2><p>Please wait ${Math.ceil(wait / 60)} minute(s) and try again.</p>`
+          + `<p><a href="/lbpanel/index.php">Back to the login form</a></p></div>`);
+        return;
+      }
+    }
 
     const query = [target.extraQuery, url.search.replace(/^\?/, '')].filter(Boolean).join('&');
     const response = await withPhpLock(() => handler.request({
@@ -407,6 +527,11 @@ const server = createServer(async (req, res) => {
       headers,
       body,
     }));
+
+    if (isLoginPost) {
+      const saidNo = Buffer.from(response.bytes).subarray(0, 20000).toString('utf8').includes('Invalid username or password');
+      recordLogin(ip, !saidNo);
+    }
 
     const notFound = response.httpStatusCode === 404;
     const isSlugRoute = /^\/(categories|blog|projects|shop)\/[^/]+$/.test(url.pathname);
@@ -425,6 +550,16 @@ const server = createServer(async (req, res) => {
     }
 
     const outHeaders = { ...response.headers };
+    // The runner owns the session cookie (see SESSION_COOKIE above).
+    for (const key of Object.keys(outHeaders)) {
+      if (key.toLowerCase() === 'set-cookie') delete outHeaders[key];
+    }
+    const rotatedSid = String(outHeaders['x-wdx-session-id'] || outHeaders['X-WDX-Session-Id'] || '');
+    delete outHeaders['x-wdx-session-id'];
+    delete outHeaders['X-WDX-Session-Id'];
+    if (/^[A-Fa-f0-9]{16,128}$/.test(rotatedSid)) {
+      res.setHeader('Set-Cookie', `${SESSION_COOKIE}=${rotatedSid.toLowerCase()}; Path=/; HttpOnly; SameSite=Lax`);
+    }
     let payload = Buffer.from(response.bytes);
 
     const contentType = String(outHeaders['content-type'] || outHeaders['Content-Type'] || '');

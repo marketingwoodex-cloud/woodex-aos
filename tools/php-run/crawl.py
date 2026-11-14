@@ -93,19 +93,37 @@ def make_opener():
     return urllib.request.build_opener(urllib.request.HTTPCookieProcessor(cj))
 
 
+SESSION_COOKIE = {"header": ""}
+
+
+def _remember_cookie(headers) -> None:
+    """Keep the panel session id current — the guard rotates it after login."""
+    for cookie in (headers.get_all("Set-Cookie") or []) if headers else []:
+        pair = cookie.split(";")[0]
+        if pair.startswith(("WDXSESSID=", "PHPSESSID=")):
+            SESSION_COOKIE["header"] = pair
+
+
 def fetch(opener, base: str, path: str, timeout: float = 60):
     url = base.rstrip("/") + path
-    req = urllib.request.Request(url, headers={
+    headers = {
         "User-Agent": "woodex-audit/1.0",
         "Accept": "text/html,application/xhtml+xml,*/*",
         "X-Forwarded-Proto": "http",
         "X-Forwarded-Host": urllib.parse.urlsplit(base).netloc,
-    })
+    }
+    # urllib's cookie jar does not always replay the panel's HttpOnly cookie, so
+    # the session header is sent explicitly once the login succeeded.
+    if SESSION_COOKIE["header"]:
+        headers["Cookie"] = SESSION_COOKIE["header"]
+    req = urllib.request.Request(url, headers=headers)
     try:
         with opener.open(req, timeout=timeout) as resp:
             body = resp.read()
+            _remember_cookie(resp.headers)
             return resp.status, body, resp.headers.get("Content-Type", ""), ""
     except urllib.error.HTTPError as exc:
+        _remember_cookie(exc.headers)
         return exc.code, exc.read(), exc.headers.get("Content-Type", "") if exc.headers else "", ""
     except Exception as exc:  # noqa: BLE001
         return 0, b"", "", f"{type(exc).__name__}: {exc}"
@@ -122,8 +140,13 @@ def login(opener, base: str, user: str, password: str) -> tuple[bool, str]:
     try:
         with opener.open(req, timeout=90) as resp:
             body = resp.read().decode("utf-8", "replace")
+            cookies = resp.headers.get_all("Set-Cookie") or []
+            for cookie in cookies:
+                pair = cookie.split(";")[0]
+                if pair.startswith("WDXSESSID=") or pair.startswith("PHPSESSID="):
+                    SESSION_COOKIE["header"] = pair
             ok = "Invalid username or password" not in body
-            return ok, f"status={resp.status}"
+            return ok, f"status={resp.status} cookie={'yes' if SESSION_COOKIE['header'] else 'no'}"
     except urllib.error.HTTPError as exc:
         return False, f"HTTPError {exc.code}"
     except Exception as exc:  # noqa: BLE001
@@ -234,7 +257,11 @@ def main() -> int:
             if href and href not in seen:
                 queue.append(href)
 
-    for group, path in admin_urls():
+    # /logout.php destroys the panel session, so it is fetched last, not during
+    # the authenticated sweep (otherwise every later admin URL looks public).
+    admin_list = [(g, p) for g, p in admin_urls() if "logout" not in p]
+    admin_list += [(g, p) for g, p in admin_urls() if "logout" in p]
+    for group, path in admin_list:
         status, body, ctype, err = fetch(opener, base, path)
         rec = classify(group, path, status, body, ctype)
         # Direct hits on .php entry points that need POST/query parameters are

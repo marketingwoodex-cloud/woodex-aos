@@ -191,6 +191,33 @@ if (@is_file($_SERVER['SCRIPT_FILENAME'])) @chdir(dirname($_SERVER['SCRIPT_FILEN
 * `affected_rows`/`insert_id` for writes come back as 0/-1 through the shim;
   the app only uses them for "record saved" messages, which still work.
 * Full-text search and `MATCH … AGAINST` are not emulated.
-* Production still needs the P0 security work from `docs/php-code-audit.md`
-  (rotated DB password, auth guard on 59 unguarded admin scripts, CSRF, session
-  regeneration, login throttling).
+* Production still needs the P0 security work — see `tools/security/README.md`
+  (rotate the DB password, delete `connection.php.orig`, move `sessions/` out of
+  the web root, add the session guard to the 59 unguarded admin scripts,
+  `session_regenerate_id()` on login, login throttling, then CSRF/POST).
+
+## Security layer
+
+`tools/security/guard.php` is loaded as PHP's second prepend file (after the cwd
+shim), so it runs before every application script:
+
+* **admin authentication** — every `/lbpanel/*` request needs a session;
+  AJAX endpoints answer `401 {"error":"Authentication required"}`, pages
+  redirect to `/lbpanel/index.php?next=…`;
+* **sessions** — the runner mints/reads the `WDXSESSID` cookie (HttpOnly,
+  SameSite=Lax) and passes the id to PHP in a header. The guard loads the session
+  file for that id and saves it back at shutdown, because PHP-WASM's own session
+  handling leaks state between visitors and writes into the wrong file. PHP's
+  cookie handling is off (`session.use_cookies=0`) and the runtime is recreated
+  per request (`PHP_MAX_REQUESTS`, default 1);
+* **session rotation** — a fresh id after login, data copied over, old file
+  deleted, new id returned to the runner in `X-WDX-Session-Id`;
+* **baseline headers** — `X-Content-Type-Options`, `Referrer-Policy`
+  (no `X-Frame-Options`: the preview is embedded in an iframe).
+
+Login throttling lives in `server.mjs`: 6 failures per IP per 15 min → `429`.
+Secret files (`error_log`, `.orig`, `.sql`, `php.ini`, `sessions/`, …) are never
+served — 404, not 403.
+
+Verify with `tools/security/verify.sh http://127.0.0.1:3000` (34 checks). Touching
+`.tmp/guard-debug.on` writes every guard decision to `.tmp/guard-debug.log`.
