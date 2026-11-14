@@ -10,6 +10,34 @@ live-data admin group (`/live`) — 171 products, 53 categories, 87 FAQs, 5 orde
 11 quotations of genuine data, with no PHP required. See
 [Live preview on your real database](#live-preview-on-your-real-database).
 
+---
+
+## ▶ Your real PHP application, running locally
+
+The cPanel application you uploaded (`public_html/`, 1,407 files) now runs **as
+is** on this machine, against the 41-table schema restored from your MariaDB
+dump — no rebuild, no rewrite of the app:
+
+```bash
+tools/php-run/dev.sh start        # MySQL bridge (3306) + PHP 8.2 runner (3000)
+```
+
+* storefront — <http://localhost:3000/>
+* admin panel — <http://localhost:3000/lbpanel/>
+* login — user `bilal`, password `Woodex@2026` (created for this local run; the
+  original hash's password is unknown)
+* verification — `tools/php-run/smoke.sh` logs in and walks 26 admin/storefront
+  pages: **26/26 pass**, and a form post from the panel writes to the database.
+
+How and why it runs that way (PHP compiled to WebAssembly, a MySQL-protocol
+bridge over SQLite, and the workaround for the broken mysqlnd prepared-statement
+path in php-wasm) is documented in **[tools/php-run/README.md](tools/php-run/README.md)**.
+
+The Node/React platform described below is the separate rebuild; it is **not**
+your cPanel application and does not replace it.
+
+---
+
 > **Background:** this repository was created from the intent described in
 > `marketingwoodex-cloud/reimagin-os` (“creative Laravel-based admin with a master plan for
 > different modules, APIs, database, multi-project integration and deployment”). Both source

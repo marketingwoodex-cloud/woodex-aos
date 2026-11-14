@@ -1,0 +1,130 @@
+# Running the original Woodex PHP app locally
+
+This directory runs **the real cPanel application** (`php-source/public_html/`,
+1,407 files) on this machine — no rewrites, no rebuild, the same PHP files the
+client uploaded, talking to the same 41-table schema restored from
+`db-source/woodexbaks.sql`.
+
+```
+browser ──► server.mjs  (PHP 8.2 compiled to WebAssembly, @php-wasm)
+                 │  replays .htaccess rewrites, serves static files from disk
+                 ▼
+            mysqli  ──►  mysql_bridge.py  (MySQL wire protocol on 127.0.0.1:3306)
+                 │        · translates MySQL → SQLite with sqlglot
+                 │        · registers MySQL functions (NOW, CONCAT, DATE_FORMAT, IF, …)
+                 ▼
+            .tmp/php-live.sqlite   (derived copy of the cpanel dump — 41 tables, 171 products)
+```
+
+## Quick start
+
+```bash
+tools/php-run/dev.sh start          # bridge on 3306 + PHP runner on 3000
+open http://localhost:3000/lbpanel/ # admin login
+tools/php-run/dev.sh status
+tools/php-run/dev.sh stop
+```
+
+Credentials created for this local run (the original hash is unknown):
+
+| user    | password     | role  |
+| ------- | ------------ | ----- |
+| `bilal` | `Woodex@2026` | admin |
+
+The storefront is at `http://localhost:3000/`, the admin panel at `/lbpanel/`.
+
+## What is where
+
+| path                            | role                                                        |
+| ------------------------------- | ----------------------------------------------------------- |
+| `server.mjs`                    | PHP-WASM runtime + HTTP router (`.htaccess` built in)       |
+| `mysql_bridge.py`               | MySQL-protocol server over SQLite, plus the compat patches   |
+| `shims/wdx_mysqli.php`          | mysqli shim used by the local run (see below)                |
+| `apply-shim.sh`                 | installs/removes that shim in the extracted source           |
+| `smoke.sh`                      | logs in and walks admin + storefront pages, reports failures |
+| `trace_proxy.py`                | wire-level MySQL tracer (bridge on 3307, proxy on 3306)      |
+| `dev.sh`                        | start/stop/status for both processes                         |
+
+Runtime files live in `.tmp/` (git-ignored): `php-live.sqlite` (data),
+`sql-trace.log` (every query, `OK`/`ERR`), `mysql-bridge.log`,
+`php-runner.log`, `php-errors.log`, `php-sessions/` (PHP session files).
+
+Environment switches: `PORT` (default 3000), `PHP_VERSION` (default 8.2 —
+8.3/8.4/8.5 ship with `@php-wasm/node`), `BRIDGE_DEBUG=1` for protocol logs.
+
+## Why a mysqli shim — the mysqlnd problem
+
+PHP's native driver (`mysqlnd`) in the php-wasm build aborts the whole process
+as soon as a **prepared statement** returns rows:
+
+```
+RuntimeError: null function or function signature mismatch
+  at php.wasm.mysqlnd_read_header / mysqlnd_mempool_destroy
+```
+
+It reproduces on PHP 8.2.35, 8.3.36 and 8.4.27 (so not version-specific), with
+and without `CLIENT_DEPRECATE_EOF`, on 1-column and 12-column selects, after 3
+to 17 statements. Two independent reference clients (mysql-connector-python and
+pymysql) read the exact same responses without complaint, so the bridge is not
+the problem — the WASM mysqlnd build is.
+
+A second, separate defect: a bare 7-byte OK packet makes mysqlnd read one byte
+past the packet while parsing the optional "info" field, which fails the
+response (`mysqli_query() === false`) and poisons the connection
+(`errno 2014, Commands out of sync`). The bridge now appends an empty
+length-encoded info field, which fixes every write path.
+
+For prepared statements the app is served by `WdxMysqli` (`extends mysqli`),
+which runs statements as escaped text queries over the same connection — the
+text protocol is stable (hundreds of queries, zero crashes). Only three files
+are touched, all of them the same connection bootstrap:
+
+```
+connection.php, config/connection.php, lbpanel/config/connection.php
+```
+
+`apply-shim.sh` keeps `.orig` copies and can revert. Nothing else in
+`public_html/` is modified.
+
+## Translation layer (mysql_bridge.py)
+
+Notable MySQL → SQLite handling, all driven by the queries the app actually
+issues:
+
+* `GROUP_CONCAT(x ORDER BY y SEPARATOR ', ')` → `GROUP_CONCAT(x, ', ')`
+* `CREATE TABLE IF NOT EXISTS` for a table that already exists in the import is
+  skipped entirely (otherwise `AUTO_INCREMENT`, `ENUM`, named `UNIQUE`
+  constraints and `KEY`/`INDEX` clauses all fail in SQLite)
+* `ALTER TABLE … ADD COLUMN … AFTER col` → `AFTER` removed; "duplicate column
+  name" is treated as success because the imported schema already has the column
+* `SHOW COLUMNS FROM t LIKE 'c'` is answered from `PRAGMA table_info`
+* MySQL functions registered locally: `NOW`, `SYSDATE`, `CURDATE`,
+  `DATE_FORMAT`, `CONCAT`, `IF`, `IFNULL`, `UNIX_TIMESTAMP`, …
+
+## Verified state
+
+`tools/php-run/smoke.sh` on this machine:
+
+```
+== login ==              ok (302 → dashboard.php)
+== admin panel ==        dashboard, add-users, add-blog, add-faq, add-coupon,
+                         manage-orders, view-products, sales-report — all 200
+== storefront ==         home, shop, about, contact, blog, faqs, cart, sale,
+                         projects, services, showrooms, b2b, warranty, privacy,
+                         product page (/shop/<slug>), blog post — all 200
+== 26/26 pages ok ==
+```
+
+Writes are verified end-to-end: posting the "add FAQ" form as `bilal` inserts a
+row (faqs 89 → 90) and the panel reports "FAQ added successfully!".
+
+## Limits of this harness (all local-run only)
+
+* It is a **development harness**: MySQL is emulated over SQLite, so
+  transactional/stored-procedure behaviour differs from the cPanel host.
+* `affected_rows`/`insert_id` for writes come back as 0/-1 through the shim;
+  the app only uses them for "record saved" messages, which still work.
+* Full-text search and `MATCH … AGAINST` are not emulated.
+* Production still needs the P0 security work from `docs/php-code-audit.md`
+  (rotated DB password, auth guard on 59 unguarded admin scripts, CSRF, session
+  regeneration, login throttling).
