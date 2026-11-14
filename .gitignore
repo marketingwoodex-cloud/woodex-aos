@@ -8,3 +8,6 @@ server/data/
 coverage/
 .vite/
 .tmp/
+
+# Raw database dumps contain customer PII — never commit them
+db-source/

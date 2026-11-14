@@ -227,6 +227,21 @@ Errors always return `{ "error": "human readable message" }` with 400/401/403/40
 
 ---
 
+## Database audit
+
+`docs/database-audit.md` contains a full audit of the real cPanel database dump
+(`u128159657_woodexbaks`) — 41 tables, 637 rows, schema map, integrity findings and
+repair SQL. The auditor is reusable:
+
+```bash
+python3 tools/db-audit/audit.py path/to/dump.sql \
+  --out-db /tmp/audit.sqlite --json /tmp/audit.json
+```
+
+It parses phpMyAdmin dumps directly (CREATE/ALTER/INSERT, MySQL escaping), mirrors them into
+SQLite and reports orphans, duplicates, JSON validity, totals reconciliation and schema smells.
+Run it against a dump copy — it performs no writes to the source.
+
 ## Roles & permissions
 
 | Capability | Admin | Manager | Viewer |
