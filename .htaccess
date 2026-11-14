@@ -11,7 +11,7 @@ RewriteEngine On
 # Repository administration and source artifacts are never public endpoints.
 # Hostinger must honor .htaccess overrides; verify these restrictions on staging.
 RewriteRule (^|/)\.(?!well-known(?:/|$)) - [F,NC]
-RewriteRule ^(?:deployment|preview|downloads|database|site)(?:/|$) - [F,NC]
+RewriteRule ^(?:deployment|preview|downloads|database|site|public_html)(?:/|$) - [F,NC]
 RewriteRule ^(?:README\.md|PROJECT_MASTER_REPORT\.md|PREVIEW_STATUS_AND_REMAINING_WORK\.md|public_html\.part[0-9]+\.zip)$ - [F,NC]
 <FilesMatch "(?i)\.(sql|zip|rar|bak|log|ini)$">
   Require all denied
