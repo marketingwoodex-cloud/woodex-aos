@@ -219,6 +219,18 @@ FileETag None
 RewriteCond %{REQUEST_METHOD} ^(TRACE|TRACK)
 RewriteRule .* - [F]
 
+
+# ---------------------------------------------------------
+# 10) Hardening (see docs/deploy-hostinger.md)
+#     Session files, dumps and fatal-error logs must never be
+#     reachable, even if something recreates them by accident.
+# ---------------------------------------------------------
+<FilesMatch "^(error_log|php_errors?\.log|\.user\.ini|php\.ini)$">
+  Require all denied
+</FilesMatch>
+
+RedirectMatch 404 (?i)/(sessions|\.wdx_data)(/|$)
+
 # =========================================================
 # End
 # =========================================================

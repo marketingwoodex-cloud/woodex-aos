@@ -1,9 +1,15 @@
 # Security hardening
 
-Status: **applied to the local run** (the preview you are looking at). The application files in
-`php-source/public_html/` are still untouched — everything below is enforced by
-`tools/php-run/server.mjs` + `tools/security/guard.php`, and this document gives you the equivalent
-patch for the cPanel host.
+Status: **applied twice, on purpose.**
+
+* The original source in `php-source/public_html/` now carries the patches
+  (`tools/security/patch-app.py`) — that is what gets deployed to Hostinger, and what the staging
+  guide `docs/deploy-hostinger.md` walks through.
+* The local runner additionally enforces the same rules from outside the app
+  (`tools/php-run/server.mjs` + `tools/security/guard.php`), so the preview behaves like the
+  hardened site even for scripts a future edit might miss.
+
+`patch-app.py` is idempotent and safe to re-run after pulling new application code.
 
 Verify the whole set at any time:
 
@@ -92,6 +98,14 @@ speed over strict isolation.
 Everything below is a file edit, so it is **your** call — the local run does not touch
 `php-source/`. Each item is small and independent.
 
+### Already done in the tracked source
+
+`lbpanel/config/auth_guard.php` + the `require_once` at the top of 71 admin scripts, cookie hardening
+and the out-of-docroot session path in `session.php`, `session_regenerate_id(true)` and the login
+throttle in `lbpanel/index.php`, credential-free `connection.php`, and the `.htaccess` hardening
+block. The leftover is **operational**: the live server still has the old files and the old DB
+password, so:
+
 ### P0 — do these first
 
 1. **Rotate the database password** (Hostinger → MySQL), then update `connection.php`.
@@ -151,7 +165,9 @@ Everything below is a file edit, so it is **your** call — the local run does n
 
 | file | role |
 | --- | --- |
-| `tools/security/guard.php` | auto-prepend: cwd, session identity/storage/isolation, admin auth, session rotation, baseline headers |
+| `tools/security/patch-app.py` | applies the production patches to the real source (71 scripts guarded, session hardening, throttling, credential-free connection) |
+| `tools/security/quarantine.py` | moves leaked files + the old `sessions/` out of the web root into `.tmp/quarantine/` |
+| `tools/security/guard.php` | local runner only: auto-prepend guard, session identity/isolation, baseline headers |
 | `tools/security/verify.sh` | 34 black-box HTTP checks (`tools/security/verify.sh [base-url]`) |
 | `tools/php-run/server.mjs` | blocked paths, session cookie, login throttling, PHP runtime rotation |
 | `.tmp/guard-debug.on` | touch this file to log every guard decision to `.tmp/guard-debug.log` |

@@ -38,6 +38,21 @@ your cPanel application and does not replace it.
 
 ---
 
+## ▶ Deploying to Hostinger (staging first)
+
+`main` now contains the site itself: `php-source/public_html/` — the original
+application with the P0 security patches applied to the source (admin session
+guard on 71 scripts, `session_regenerate_id`, login throttling, cookies outside
+the web root, no credentials in `connection.php`, leaked files removed).
+
+* step-by-step staging walkthrough — **[docs/deploy-hostinger.md](docs/deploy-hostinger.md)**
+* what each patch does + the production checklist — **[tools/security/README.md](tools/security/README.md)**
+* upload archive — `tools/deploy/make-bundle.sh` → `.tmp/public_html.zip`
+* verification against the deployed site — `tools/security/verify.sh https://staging…`
+  (34 checks) and `tools/php-run/smoke.sh https://staging…` (26 pages)
+
+---
+
 > **Background:** this repository was created from the intent described in
 > `marketingwoodex-cloud/reimagin-os` (“creative Laravel-based admin with a master plan for
 > different modules, APIs, database, multi-project integration and deployment”). Both source

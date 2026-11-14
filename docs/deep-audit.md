@@ -165,17 +165,18 @@ Other admin findings:
 
 ## 6b. Security hardening — done in the local copy
 
-Full write-up and the exact cPanel patch for each item: **`tools/security/README.md`**.
-Black-box suite: `tools/security/verify.sh` → **34/34 checks passed**.
+Full write-up: **`tools/security/README.md`**. The patches are now **in the tracked application
+source** (`tools/security/patch-app.py`), which is what `main` deploys — deployment walkthrough in
+`docs/deploy-hostinger.md`. Black-box suite: `tools/security/verify.sh` → **34/34 checks passed**.
 
 | P0 finding | Local copy | Production |
 | --- | --- | --- |
 | `connection.php.orig` downloadable **with the live DB password** | 404 (`server.mjs` block list) | **delete the file, rotate the password** |
-| public `error_log` (3 KB MySQL trace), `php.ini`, `.user.ini`, `database/*.sql` | 404 | `.htaccess` `FilesMatch` + delete |
-| `sessions/` (239 files) inside the web root | 404 | move the folder above `public_html`, delete the old one |
-| 59 of 79 admin scripts unguarded, POS writes unauthenticated | every `/lbpanel/*` request needs a session; AJAX gets `401 {"error":"Authentication required"}` | one guard include per script |
+| public `error_log` (3 KB MySQL trace), `php.ini`, `.user.ini`, `database/*.sql` | removed from the tree (`tools/security/quarantine.py`) + 404 | delete them on the live server |
+| `sessions/` (239 files) inside the web root | moved above the document root in `session.php`; directory deleted | same change, plus delete the old folder on the live server |
+| 59 of 79 admin scripts unguarded, POS writes unauthenticated | `lbpanel/config/auth_guard.php` required at the top of **71** scripts; AJAX gets `401 {"error":"Authentication required"}`, pages redirect with `?next=` | same patch, already in the source |
 | no login throttling | 6 failures / 15 min per IP → `429` + `Retry-After` | table or WAF rule |
-| no `session_regenerate_id()` | id rotated after login, data migrated, old file deleted | `session_regenerate_id(true)` in the login block |
+| no `session_regenerate_id()` | id rotated after login (runner **and** `lbpanel/index.php`) | already applied in the source |
 | destructive actions via GET, no CSRF | documented, **not** changed (would alter the app's behaviour) | POST + token per form |
 | SMTP password echoed in the admin UI | documented, **not** changed | move to env/file, mask in the form |
 
