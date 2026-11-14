@@ -12,7 +12,6 @@ coverage/
 
 # Raw database dumps contain customer PII — never commit them
 db-source/
-php-source/
-.tmp/php-source/
+/php-source/
 public_html.part*.zip
 public_html.zip
