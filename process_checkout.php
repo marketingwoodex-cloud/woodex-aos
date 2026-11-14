@@ -46,8 +46,6 @@ $city     = trim($_POST['city'] ?? '');
 $state    = trim($_POST['state'] ?? '');
 $zip      = trim($_POST['zip'] ?? '');
 $country  = trim($_POST['country'] ?? '');
-$total_amount  = (float)($_POST['total_amount'] ?? 0);
-$shippingCost  = isset($_POST['shipping_cost']) ? (float)$_POST['shipping_cost'] : 200;
 $payment_method = "Cash on Delivery";
 
 // Validate cart
@@ -57,10 +55,20 @@ if (empty($_SESSION['cart']) || !is_array($_SESSION['cart'])) {
 }
 $cartItems = $_SESSION['cart'];
 
-// Coupon
-$coupon         = $_SESSION['coupon'] ?? null;
-$couponCode     = $coupon['code'] ?? null;
-$discountAmount = (float)($coupon['discount'] ?? 0);
+// Recalculate from the server-side cart. Never trust submitted hidden totals.
+require_once __DIR__ . '/config/order_totals.php';
+try {
+    $totals = wdx_checkout_totals($cartItems, $_SESSION['coupon'] ?? null);
+} catch (InvalidArgumentException $e) {
+    header("Location: " . $domain . "cart?error=" . urlencode('Invalid cart.'));
+    exit();
+}
+if (!$totals['coupon_valid']) unset($_SESSION['coupon']);
+$coupon = $_SESSION['coupon'] ?? null;
+$couponCode = $coupon['code'] ?? null;
+$discountAmount = $totals['discount'];
+$total_amount = $totals['total'];
+$shippingCost = $totals['shipping'];
 
 // Generate order number
 $order_number = 'ORDER-' . strtoupper(uniqid());

@@ -3,38 +3,20 @@ require_once __DIR__ . '/./lbpanel/config/session.php';
 wdx_session_start();
 include "lbpanel/config/connection.php";
 
-// Calculate cart total
-$total = 0;
-if (!empty($_SESSION['cart']) && is_array($_SESSION['cart'])) {
-    foreach ($_SESSION['cart'] as $item) {
-        $subtotal = ((float)$item['current_price']) * ((int)$item['quantity']);
-        $total += $subtotal;
-    }
+require_once __DIR__ . '/config/order_totals.php';
+try {
+    $totals = wdx_checkout_totals($_SESSION['cart'] ?? [], $_SESSION['coupon'] ?? null);
+} catch (InvalidArgumentException $e) {
+    header("Location: " . $domain . "cart?error=" . urlencode('Invalid cart.'));
+    exit();
 }
-
-// Retrieve cart totals & coupon (if any)
-$cartTotals = $_SESSION['cart_totals'] ?? [
-    'subtotal'    => 0,
-    'discount'    => 0,
-    'grand_total' => 0,
-];
-
-$coupon      = $_SESSION['coupon'] ?? null;
-$couponCode  = $coupon['code'] ?? 'None';
-$discount    = (float)($coupon['discount'] ?? 0);
-
-// If no coupon is applied, use $total
-if ($couponCode === 'None') {
-    $subtotalDisplay = $total;
-    $grandTotal      = $total;
-} else {
-    $subtotalDisplay = $cartTotals['subtotal'] > 0 ? (float)$cartTotals['subtotal'] : $total;
-    $grandTotal      = $cartTotals['grand_total'] > 0 ? (float)$cartTotals['grand_total'] : max(0, $subtotalDisplay - $discount);
-}
-
-// Determine shipping cost (free > 3000)
-$shippingCost = ($total > 3000) ? 0 : 200;
-$grandTotal  += $shippingCost;
+if (!$totals['coupon_valid']) unset($_SESSION['coupon']);
+$total = $totals['subtotal'];
+$subtotalDisplay = $totals['subtotal'];
+$discount = $totals['discount'];
+$shippingCost = $totals['shipping'];
+$grandTotal = $totals['total'];
+$couponCode = $_SESSION['coupon']['code'] ?? 'None';
 
 // If nothing in cart, bounce to cart
 if ($total <= 0) {

@@ -2,6 +2,7 @@
 require_once __DIR__ . '/./lbpanel/config/session.php';
 wdx_session_start();
 include "lbpanel/config/connection.php";
+require_once __DIR__ . '/config/order_totals.php';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $couponCode = $_POST['coupon_code'] ?? '';
@@ -62,11 +63,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // Store the coupon details in the session
     $_SESSION['coupon'] = [
         'code' => $couponCode,
-        'discount' => number_format($discount, 2),
-        'grand_total' => number_format($grandTotal, 2),
+        'discount' => number_format($discount, 2, '.', ''),
+        'grand_total' => number_format($grandTotal, 2, '.', ''),
         'applies_to' => $appliesTo,
         'related_id' => $relatedId,
-        'subtotal' => number_format($subtotal, 2)
+        'subtotal' => number_format($subtotal, 2, '.', ''),
+        'cart_fingerprint' => wdx_cart_fingerprint($_SESSION['cart'] ?? [])
     ];
 
     // Return the discount and updated total
