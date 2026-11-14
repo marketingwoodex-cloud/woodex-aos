@@ -27,9 +27,18 @@ tools/php-run/dev.sh stop
 
 Credentials created for this local run (the original hash is unknown):
 
-| user    | password     | role  |
-| ------- | ------------ | ----- |
-| `bilal` | `Woodex@2026` | admin |
+| user      | password       | role    |
+| --------- | -------------- | ------- |
+| `admin`   | `Woodex@2026`  | admin   |
+| `bilal`   | `Woodex@2026`  | admin   |
+| `manager` | `Woodex@2026`  | manager |
+
+Rebuild the database from the cpanel dump at any time (backup kept, accounts
+re-seeded):
+
+```bash
+tools/php-run/rebuild-db.sh        # .tmp/php-live.sqlite from db-source/woodexbaks.sql
+```
 
 The storefront is at `http://localhost:3000/`, the admin panel at `/lbpanel/`.
 
@@ -44,6 +53,10 @@ The storefront is at `http://localhost:3000/`, the admin panel at `/lbpanel/`.
 | `smoke.sh`                      | logs in and walks admin + storefront pages, reports failures |
 | `trace_proxy.py`                | wire-level MySQL tracer (bridge on 3307, proxy on 3306)      |
 | `dev.sh`                        | start/stop/status for both processes                         |
+| `serve.sh`                      | foreground launcher (bridge + runner), used by the preview   |
+| `rebuild-db.sh`                 | re-import the dump into `.tmp/php-live.sqlite`                |
+| `seed_users.py`                 | create the local admin accounts (bcrypt, cost 10)             |
+| `list-slugs.py`                 | category/product slugs for `/sitemap.xml`                     |
 
 Runtime files live in `.tmp/` (git-ignored): `php-live.sqlite` (data),
 `sql-trace.log` (every query, `OK`/`ERR`), `mysql-bridge.log`,
@@ -117,6 +130,33 @@ issues:
 
 Writes are verified end-to-end: posting the "add FAQ" form as `bilal` inserts a
 row (faqs 89 → 90) and the panel reports "FAQ added successfully!".
+
+## Browser-facing behaviour of the runner
+
+The preview is served through a proxy, so the runner has to be careful about the
+origin the application sees:
+
+* **Origin pass-through.** The PHP request is built with the browser's real
+  `x-forwarded-proto`/`Host`. The app derives every absolute URL from
+  `$_SERVER['HTTP_HOST']`, so pages now emit `https://<preview-host>/assets/...`
+  instead of `http://127.0.0.1:3000/assets/...` — the latter was blocked as mixed
+  content, which is why images appeared broken.
+* **Hardcoded production domain.** A few templates/footers hardcode
+  `https://woodexfurniture.pk/...`; those URLs are rewritten in the HTML response
+  to the request origin (mail addresses are left untouched).
+* **Missing images.** Images absent from the upload get a neutral SVG placeholder
+  (200, `image/svg+xml`) instead of a broken-image icon.
+* **Link aliases.** The delivered header/footer defaults point at pages and
+  category slugs that do not exist in the database (`/categories/ergonomic-chair`,
+  `/portfolio`, `/careers`, `/sitemap.xml`, …). They 404 on the live host too.
+  For the preview, `LINK_ALIASES` in `server.mjs` redirects them to the closest
+  real page, and any other unknown `/categories|/blog|/projects|/shop/<slug>`
+  redirects to its listing page.
+* **`/sitemap.xml`** is generated from the database (pages + categories + 200
+  products) instead of 404-ing.
+
+Verified after these changes: **184 links/assets on the home page, 0 broken**,
+and the same 26/26 smoke pages.
 
 ## Limits of this harness (all local-run only)
 

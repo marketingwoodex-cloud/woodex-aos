@@ -12,6 +12,7 @@
  */
 import { createServer } from 'node:http';
 import { createReadStream, existsSync, readFileSync, statSync, mkdirSync, appendFileSync } from 'node:fs';
+import { execSync } from 'node:child_process';
 import { extname, join, normalize, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -97,6 +98,78 @@ function buildRewriteRules() {
 
 const { rules: rewriteRules, dynamic: dynamicRules } = buildRewriteRules();
 
+/**
+ * Link aliases for the local run.
+ *
+ * The delivered header/footer templates and the footer_settings defaults point
+ * at pages and category slugs that do not exist in the database (they 404 on
+ * the live host as well). Rather than leaving dead ends in the preview, known
+ * menu targets are redirected to the closest real page; anything else under
+ * /categories or /blog falls back to the listing page.
+ */
+const LINK_ALIASES = new Map([
+  // footer "Shop" column → categories that exist in the import
+  ['/categories/ergonomic-chair', '/categories/office-chairs'],
+  ['/categories/executive-desks', '/categories/executive-table'],
+  ['/categories/manager-tables', '/categories/manager-table'],
+  ['/categories/office-chair', '/categories/office-chairs'],
+  ['/categories/workstations', '/categories/workstation'],
+  ['/categories/cubicle-system', '/categories/cubicle-workstation'],
+  ['/categories/office-sofa', '/categories/office-sofas'],
+  ['/categories/office-storage', '/categories/office-storages'],
+  ['/categories/office-sofa-storage', '/categories/office-sofas'],
+  ['/categories/reception', '/categories/reception-desk'],
+  // footer "Quick links" / "Learn more" columns
+  ['/portfolio', '/projects'],
+  ['/b2b-markets', '/b2b'],
+  ['/careers', '/contact-us'],
+  ['/distributors', '/b2b'],
+  ['/support', '/contact-us'],
+  ['/resources', '/blog'],
+  ['/ideas-and-inspiration', '/projects'],
+  ['/awards', '/about-us'],
+  ['/planning-ideas', '/space-planning'],
+  ['/workspace-design', '/space-planning'],
+]);
+
+/** Slugs known to the database, used for /sitemap.xml and the listing fallback. */
+function loadSlugs() {
+  try {
+    const raw = execSync(`python3 tools/php-run/list-slugs.py ${join(repo, '.tmp', 'php-live.sqlite')}`, {
+      encoding: 'utf8',
+      cwd: repo,
+      timeout: 15000,
+    });
+    const parsed = JSON.parse(raw);
+    return {
+      categories: Array.isArray(parsed.categories) ? parsed.categories : [],
+      products: Array.isArray(parsed.products) ? parsed.products : [],
+    };
+  } catch (error) {
+    console.warn('could not read slugs for the sitemap:', error.message);
+    return { categories: [], products: [] };
+  }
+}
+
+const slugs = loadSlugs();
+
+function sitemapXml(origin) {
+  const pages = ['/', '/shop', '/about-us', '/contact-us', '/blog', '/faqs', '/projects', '/services',
+    '/showrooms', '/b2b', '/space-planning', '/warranty', '/privacy-policy', '/terms-and-conditions'];
+  const urls = [
+    ...pages,
+    ...slugs.categories.map((slug) => `/categories/${slug}`),
+    ...slugs.products.map((slug) => `/shop/${slug}`),
+  ];
+  const body = urls
+    .map((path) => `  <url><loc>${origin}${path}</loc></url>`)
+    .join('\n');
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemap.org/schemas/sitemap/0.9">
+${body}
+</urlset>`;
+}
+
 function resolveTarget(pathname) {
   let path = decodeURIComponent(pathname);
 
@@ -170,13 +243,78 @@ const handler = new PHPRequestHandler({
   getFileNotFoundAction: () => ({ type: '404' }),
 });
 
+/**
+ * The browser's real origin. Behind the preview proxy the request arrives on
+ * 0.0.0.0:3000 with the public host in x-forwarded-*; the application builds
+ * absolute URLs from $_SERVER['HTTP_HOST'] and its scheme from $_SERVER['HTTPS']
+ * / REQUEST_SCHEME, so handing it the public origin is what keeps images, CSS
+ * and links from pointing at http://127.0.0.1 (mixed content → broken images).
+ */
+function requestOrigin(req) {
+  const first = (value) => String(value || '').split(',')[0].trim();
+  const host = first(req.headers['x-forwarded-host']) || req.headers.host || `localhost:${port}`;
+  const isLocalHost = /^(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/.test(host);
+  const scheme = first(req.headers['x-forwarded-proto']) || (isLocalHost ? 'http' : 'https');
+  return { scheme, host };
+}
+
+/**
+ * A handful of templates hardcode the production domain (footer/header links,
+ * some legal pages). Served locally those links would jump to the live site, so
+ * rewrite them to the origin the browser is actually on. Mail addresses are left
+ * alone because only real URLs (host followed by "/") are matched.
+ */
+function rewriteAbsoluteUrls(html, origin) {
+  const { scheme, host } = origin;
+  return html
+    .replace(/(?<![@\w.-])https?:\/\/(?:www\.)?woodexfurniture\.pk(?=\/)/gi, `${scheme}://${host}`)
+    .replace(/(?<![@\w.-])https?:\/\/(?:localhost|127\.0\.0\.1):\d+(?=\/)/gi, `${scheme}://${host}`);
+}
+
+/** Missing images get a neutral placeholder instead of a broken-image icon. */
+const IMAGE_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.webp', '.gif', '.svg']);
+
+function placeholderImage(label) {
+  const text = String(label || 'Woodex').replace(/[<>&"]/g, '').slice(0, 48);
+  return Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="600" height="400" viewBox="0 0 600 400">
+  <rect width="600" height="400" fill="#eef1f5"/>
+  <rect x="0.5" y="0.5" width="599" height="399" fill="none" stroke="#d6dbe3"/>
+  <text x="300" y="200" font-family="Arial, Helvetica, sans-serif" font-size="22" fill="#8a94a6" text-anchor="middle">${text}</text>
+  <text x="300" y="232" font-family="Arial, Helvetica, sans-serif" font-size="14" fill="#aab2c0" text-anchor="middle">image not in upload</text>
+</svg>`);
+}
+
 const server = createServer(async (req, res) => {
   const started = Date.now();
   try {
     const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+    const origin = requestOrigin(req);
+
+    if (url.pathname === '/sitemap.xml') {
+      const xml = Buffer.from(sitemapXml(`${origin.scheme}://${origin.host}`), 'utf8');
+      res.writeHead(200, { 'Content-Type': 'application/xml; charset=utf-8', 'Content-Length': xml.length });
+      res.end(xml);
+      return;
+    }
+
+    const alias = LINK_ALIASES.get(url.pathname.replace(/\/+$/, ''));
+    if (alias) {
+      res.writeHead(302, { Location: `${origin.scheme}://${origin.host}${alias}` });
+      res.end();
+      return;
+    }
+
     const target = resolveTarget(url.pathname);
 
     if (!target) {
+      const missingExt = extname(url.pathname).toLowerCase();
+      if (IMAGE_EXTENSIONS.has(missingExt)) {
+        const label = decodeURIComponent(url.pathname).split('/').pop().replace(/[-_]/g, ' ');
+        const svg = placeholderImage(label);
+        res.writeHead(200, { 'Content-Type': 'image/svg+xml', 'Content-Length': svg.length, 'Cache-Control': 'public, max-age=300' });
+        res.end(svg);
+        return;
+      }
       res.writeHead(404, { 'Content-Type': 'text/html; charset=utf-8' });
       res.end(`<h1>404</h1><p>No route for ${url.pathname}</p>`);
       return;
@@ -209,20 +347,43 @@ const server = createServer(async (req, res) => {
 
     const query = [target.extraQuery, url.search.replace(/^\?/, '')].filter(Boolean).join('&');
     const response = await handler.request({
-      url: `http://localhost:${port}${target.url}${query ? `?${query}` : ''}`,
+      url: `${origin.scheme}://${origin.host}${target.url}${query ? `?${query}` : ''}`,
       method: req.method,
       headers,
       body,
     });
+
+    const notFound = response.httpStatusCode === 404;
+    const isSlugRoute = /^\/(categories|blog|projects|shop)\/[^/]+$/.test(url.pathname);
+    if (notFound && isSlugRoute) {
+      const listing = url.pathname.startsWith('/blog') ? '/blog'
+        : url.pathname.startsWith('/projects') ? '/projects'
+        : url.pathname.startsWith('/categories') ? '/shop'
+        : '/shop';
+      res.writeHead(302, { Location: `${origin.scheme}://${origin.host}${listing}` });
+      res.end();
+      return;
+    }
 
     if (response.errors) {
       appendFileSync(errorLog, `[${new Date().toISOString()}] ${target.url}\n${response.errors}\n\n`);
     }
 
     const outHeaders = { ...response.headers };
+    let payload = Buffer.from(response.bytes);
+
+    const contentType = String(outHeaders['content-type'] || outHeaders['Content-Type'] || '');
+    if (contentType.includes('text/html')) {
+      const rewritten = rewriteAbsoluteUrls(payload.toString('utf8'), origin);
+      if (rewritten !== payload.toString('utf8')) {
+        payload = Buffer.from(rewritten, 'utf8');
+        outHeaders['content-length'] = String(payload.length);
+      }
+    }
+
     // PHP sets its own Location; keep status as returned (302 etc).
     res.writeHead(response.httpStatusCode || 200, outHeaders);
-    res.end(Buffer.from(response.bytes));
+    res.end(payload);
 
     const ms = Date.now() - started;
     if (process.env.VERBOSE) console.log(`${req.method} ${url.pathname} -> ${response.httpStatusCode} (${ms}ms)`);
