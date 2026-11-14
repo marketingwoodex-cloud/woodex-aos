@@ -3,6 +3,7 @@ require_once __DIR__ . '/./lbpanel/config/session.php';
 wdx_session_start();
 include "lbpanel/config/connection.php";
 require_once __DIR__ . '/config/order_totals.php';
+require_once __DIR__ . '/config/coupon_validation.php';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $couponCode = $_POST['coupon_code'] ?? '';
@@ -12,51 +13,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
-    // Fetch the coupon details from the database
-    $stmt = $conn->prepare("
-        SELECT * FROM coupons 
-        WHERE coupon_code = ? AND status = 'active' AND validity_period >= CURDATE()
-    ");
-    $stmt->bind_param('s', $couponCode);
-    $stmt->execute();
-    $coupon = $stmt->get_result()->fetch_assoc();
-    $stmt->close();
-
+    $coupon = wdx_active_coupon($conn, (string)$couponCode);
     if (!$coupon) {
         echo json_encode(['status' => false, 'message' => 'Invalid or expired coupon code.']);
         exit;
     }
-
-    // Calculate the discount
-    $discount = 0;
+    $cart = $_SESSION['cart'] ?? [];
+    $subtotal = 0.0;
+    foreach ($cart as $item) $subtotal += (float)$item['current_price'] * (int)$item['quantity'];
+    $discount = wdx_coupon_discount($cart, $coupon);
     $appliesTo = $coupon['applies_to'];
     $relatedId = $coupon['related_id'];
-    $discountType = $coupon['discount_type'];
-    $discountAmount = $coupon['discount_amount'];
-
-    $subtotal = 0;
-    $discountableTotal = 0;
-
-    foreach (($_SESSION['cart'] ?? []) as $item) {
-        $itemSubtotal = $item['current_price'] * $item['quantity'];
-        $subtotal += $itemSubtotal;
-
-        if (
-            $appliesTo === 'all' || 
-            ($appliesTo === 'product' && (string)($item['product_id'] ?? '') === (string)$relatedId) ||
-            ($appliesTo === 'treatment' && (string)($item['treatment'] ?? '') === (string)$relatedId)
-        ) {
-            $discountableTotal += $itemSubtotal;
-        }
-    }
-
-    if ($discountableTotal > 0) {
-        if ($discountType === 'percentage') {
-            $discount = ($discountAmount / 100) * $discountableTotal;
-        } elseif ($discountType === 'fixed') {
-            $discount = min($discountAmount, $discountableTotal);
-        }
-    }
 
     $grandTotal = $subtotal - $discount;
 

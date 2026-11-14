@@ -54,6 +54,12 @@ if (empty($_SESSION['cart']) || !is_array($_SESSION['cart'])) {
     exit();
 }
 $cartItems = $_SESSION['cart'];
+require_once __DIR__ . '/config/cart_validation.php';
+if (!wdx_validate_checkout_cart($conn, $cartItems)) {
+    unset($_SESSION['coupon']);
+    header("Location: " . $domain . "cart?error=" . urlencode('Product price or availability changed. Please update your cart.'));
+    exit();
+}
 
 // Recalculate from the server-side cart. Never trust submitted hidden totals.
 require_once __DIR__ . '/config/order_totals.php';
@@ -64,6 +70,16 @@ try {
     exit();
 }
 if (!$totals['coupon_valid']) unset($_SESSION['coupon']);
+// A coupon can expire or be edited after it was applied; verify it again.
+if (!empty($_SESSION['coupon'])) {
+    require_once __DIR__ . '/config/coupon_validation.php';
+    $activeCoupon = wdx_active_coupon($conn, (string)($_SESSION['coupon']['code'] ?? ''));
+    if (!$activeCoupon || abs(wdx_coupon_discount($cartItems, $activeCoupon) - $totals['discount']) >= 0.01) {
+        unset($_SESSION['coupon']);
+        header("Location: " . $domain . "checkout?error=" . urlencode('Coupon changed or expired. Please review your order.'));
+        exit();
+    }
+}
 $coupon = $_SESSION['coupon'] ?? null;
 $couponCode = $coupon['code'] ?? null;
 $discountAmount = $totals['discount'];
