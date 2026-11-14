@@ -1,0 +1,20 @@
+{
+  "name": "woodex-aos",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Woodex AOS \u2014 operations, commerce & deployment admin for Woodex Furniture",
+  "type": "module",
+  "engines": {
+    "node": ">=22.5.0"
+  },
+  "scripts": {
+    "setup": "npm install --prefix server && npm install --prefix client && npm run db:reset && npm run build",
+    "build": "npm run build --prefix client",
+    "start": "node server/src/index.js",
+    "dev": "node scripts/dev.mjs",
+    "db:reset": "node server/src/db/seed.js --reset",
+    "db:seed": "node server/src/db/seed.js",
+    "test": "node --test server/tests/*.test.js",
+    "test:ui": "node scripts/ui-smoke.mjs"
+  }
+}
