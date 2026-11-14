@@ -73,6 +73,13 @@ $shippingCost = $totals['shipping'];
 // Generate order number
 $order_number = 'ORDER-' . strtoupper(uniqid());
 
+// Keep the order and its items atomic on transactional database tables.
+if (!$conn->begin_transaction()) {
+    error_log('Unable to begin order transaction.');
+    header("Location: " . $domain . "checkout?error=" . urlencode('Failed to create order.'));
+    exit();
+}
+
 // Insert into orders
 $full_address   = "$address, $city, $state, $zip, $country";
 $payment_status = 'Pending';
@@ -85,6 +92,7 @@ $stmt = $conn->prepare("
 ");
 if (!$stmt) {
     error_log("Prepare failed for orders: " . $conn->error);
+    $conn->rollback();
     header("Location: " . $domain . "checkout?error=" . urlencode('Failed to create order.'));
     exit();
 }
@@ -106,6 +114,8 @@ $stmt->bind_param(
 
 if (!$stmt->execute()) {
     error_log("Order insertion failed: " . $stmt->error);
+    $stmt->close();
+    $conn->rollback();
     header("Location: " . $domain . "checkout?error=" . urlencode('Failed to create order.'));
     exit();
 }
@@ -121,14 +131,18 @@ $stmt = $conn->prepare("
 ");
 if (!$stmt) {
     error_log("Prepare failed for order_items: " . $conn->error);
+    $conn->rollback();
     header("Location: " . $domain . "checkout?error=" . urlencode('Failed to add items.'));
     exit();
 }
 // Types: s (order_number) i (product_id) i (variation_id) s (variation_details) s (product_name) d (price) i (quantity) d (subtotal)
 foreach ($cartItems as $cart_item_id => $item) {
     if (!isset($item['product_id'], $item['name'], $item['current_price'], $item['quantity'])) {
-        error_log("Invalid cart item structure: " . print_r($item, true));
-        continue;
+        error_log('Invalid cart item structure.');
+        $stmt->close();
+        $conn->rollback();
+        header("Location: " . $domain . "checkout?error=" . urlencode('Failed to add items.'));
+        exit();
     }
 
     $product_id        = (int)$item['product_id'];
@@ -153,9 +167,19 @@ foreach ($cartItems as $cart_item_id => $item) {
 
     if (!$stmt->execute()) {
         error_log("Order item insertion failed: " . $stmt->error);
+        $stmt->close();
+        $conn->rollback();
+        header("Location: " . $domain . "checkout?error=" . urlencode('Failed to add items.'));
+        exit();
     }
 }
 $stmt->close();
+if (!$conn->commit()) {
+    error_log('Unable to commit order transaction.');
+    $conn->rollback();
+    header("Location: " . $domain . "checkout?error=" . urlencode('Failed to create order.'));
+    exit();
+}
 
 // Calculate original subtotal for emails
 $original_total = 0;

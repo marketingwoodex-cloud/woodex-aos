@@ -11,8 +11,9 @@ Using PHP 8.4 and an isolated MariaDB staging test database with catalog data an
 - Cart add and checkout page: passed.
 - Submitting a forged total of 0.01 for a cart totaling 15,000 stored 15,000, not the forged value; the synthetic order and order item were removed afterward.
 - Total calculation checks passed for paid/free shipping, coupon values over 1,000, and coupon invalidation when cart contents change at the same subtotal. Run `php deployment/test-checkout-totals.php`.
+- Order and item inserts now use a transaction. With both tables using InnoDB, an intentionally rejected item insert rolled back the order; retrying after removing the test trigger created one order and one item. Synthetic records were removed.
 - PHP syntax checks passed for changed files.
 
 ## Limitations
 
-This is not a full security or commerce audit. Session cart prices can become stale relative to the catalog, coupons are not revalidated against the database at order submission, and order/item creation is not fully transactional. Inventory, concurrent orders, tax, payment integrations, CSRF, admin authorization, upload security and email delivery need further tests. Hostinger deployment, rewrite behavior and live staging have not been validated.
+This is not a full security or commerce audit. Session cart prices can become stale relative to the catalog, and coupons are not revalidated against the database at order submission. Transaction rollback requires transactional tables such as InnoDB; verify the host's schema. Inventory, concurrent orders, tax, payment integrations, CSRF, admin authorization, upload security and email delivery need further tests. Hostinger deployment, rewrite behavior and live staging have not been validated.
