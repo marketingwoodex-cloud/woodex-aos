@@ -1,0 +1,28 @@
+services:
+  db:
+    image: mariadb:10.11
+    environment:
+      MARIADB_DATABASE: woodex
+      MARIADB_USER: woodex
+      MARIADB_PASSWORD: woodex-local-only
+      MARIADB_ROOT_PASSWORD: woodex-root-local-only
+    volumes:
+      - db-data:/var/lib/mysql
+      - ./runtime/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+  web:
+    build: .
+    ports:
+      - "127.0.0.1:8080:80"
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./runtime/app:/var/www/html
+      - ./runtime/auth:/run/woodex-auth:ro
+volumes:
+  db-data:
