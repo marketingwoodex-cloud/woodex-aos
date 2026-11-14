@@ -8,7 +8,7 @@
 # empty, or contains a PHP fatal error.
 set -uo pipefail
 
-base="${1:-http://127.0.0.1:3001}"
+base="${1:-http://127.0.0.1:${PORT:-3001}}"
 user="${WDX_USER:-bilal}"
 pass="${WDX_PASS:-Woodex@2026}"
 jar="$(mktemp)"
@@ -17,8 +17,9 @@ fails=0
 total=0
 
 check() {  # check <label> <path> [expected-regex]
-  local label="$1" path="$2" body="$out/body.$$"
+  local label="$1" path="$2"
   total=$((total + 1))
+  local body="$out/body.$total"
   local code
   code=$(curl -s -m 60 -b "$jar" -c "$jar" -o "$body" -w '%{http_code}' "$base$path")
   local size

@@ -57,6 +57,8 @@ The storefront is at `http://localhost:3000/`, the admin panel at `/lbpanel/`.
 | `rebuild-db.sh`                 | re-import the dump into `.tmp/php-live.sqlite`                |
 | `seed_users.py`                 | create the local admin accounts (bcrypt, cost 10)             |
 | `list-slugs.py`                 | category/product slugs for `/sitemap.xml`                     |
+| `crawl.py`                      | crawls every route (storefront + admin) → `docs/route-audit.md` |
+| `content-fixes.py`              | local-only content repairs (test hero slide, logo cards)      |
 
 Runtime files live in `.tmp/` (git-ignored): `php-live.sqlite` (data),
 `sql-trace.log` (every query, `OK`/`ERR`), `mysql-bridge.log`,
@@ -157,6 +159,30 @@ origin the application sees:
 
 Verified after these changes: **184 links/assets on the home page, 0 broken**,
 and the same 26/26 smoke pages.
+
+## Audits
+
+Three re-runnable audits back the "everything works" claim; each writes a document under `docs/`:
+
+```bash
+.tmp/venv/bin/python tools/media-audit.py   # every media file vs every reference  → docs/media-audit.md
+python3 tools/db-deep-audit.py              # data integrity + schema vs code      → docs/database-deep-audit.md
+python3 tools/php-run/crawl.py              # all routes, logged-in admin included  → docs/route-audit.md
+```
+
+`docs/deep-audit.md` is the consolidated report: what is present, what is missing (and whether it
+is missing on the live site too), what was fixed in the runner, and what only the site owner can fix.
+
+## Running each script from its own directory
+
+Apache and php-fpm set the working directory to the script's own folder, and the POS module plus
+the category manager rely on it (`require '../config/connection.php'` — PHP resolves a leading
+`../` against the cwd only). PHP-WASM keeps a single cwd, so the runner writes
+`.tmp/php-prepend.php` and registers it as `auto_prepend_file`:
+
+```php
+if (@is_file($_SERVER['SCRIPT_FILENAME'])) @chdir(dirname($_SERVER['SCRIPT_FILENAME']));
+```
 
 ## Limits of this harness (all local-run only)
 

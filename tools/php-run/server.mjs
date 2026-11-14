@@ -11,7 +11,7 @@
  * speaks SQLite, which holds the real 41-table data.
  */
 import { createServer } from 'node:http';
-import { createReadStream, existsSync, readFileSync, statSync, mkdirSync, appendFileSync } from 'node:fs';
+import { createReadStream, existsSync, readFileSync, statSync, mkdirSync, appendFileSync, writeFileSync } from 'node:fs';
 import { execSync } from 'node:child_process';
 import { extname, join, normalize, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -130,6 +130,10 @@ const LINK_ALIASES = new Map([
   ['/awards', '/about-us'],
   ['/planning-ideas', '/space-planning'],
   ['/workspace-design', '/space-planning'],
+  // lbpanel/pos/manage_pos.php redirects logged-out visitors to ../login.php,
+  // which does not exist (the login form is lbpanel/index.php) — a 404 dead end.
+  ['/lbpanel/login.php', '/lbpanel/index.php'],
+  ['/login.php', '/lbpanel/index.php'],
 ]);
 
 /** Slugs known to the database, used for /sitemap.xml and the listing fallback. */
@@ -214,6 +218,25 @@ function resolveTarget(pathname) {
   return null;
 }
 
+/**
+ * Apache/php-fpm run every script with the working directory set to that
+ * script's own folder, and several pages depend on it: the POS module and the
+ * category manager do `require '../config/connection.php'`, which PHP resolves
+ * against the cwd only. PHP-WASM keeps a single cwd for the runtime, so a
+ * script that is asked to include such a path from the document root fails
+ * ("Failed opening required '../config/connection.php'", or a silent
+ * include_once that leaves $conn null and then "Call to a member function
+ * query() on null"). The prepend file restores the real-server behaviour.
+ */
+const prependFile = join(repo, '.tmp', 'php-prepend.php');
+writeFileSync(prependFile, `<?php
+$__wdx_script = $_SERVER['SCRIPT_FILENAME'] ?? '';
+if ($__wdx_script !== '' && @is_file($__wdx_script)) {
+    @chdir(dirname($__wdx_script));
+}
+unset($__wdx_script);
+`);
+
 const phpRuntimeId = await loadNodeRuntime(phpVersion, { emscriptenOptions: { processId: 1 } });
 const php = new PHP(phpRuntimeId);
 useHostFilesystem(php);
@@ -223,7 +246,7 @@ setPhpIniEntries(php, {
   display_errors: '1',
   error_reporting: 'E_ALL & ~E_DEPRECATED & ~E_NOTICE & ~E_WARNING',
   log_errors: '1',
-  'error_log': '/tmp/php-error.log',
+  'error_log': errorLog,
   memory_limit: '512M',
   'upload_max_filesize': '64M',
   'post_max_size': '64M',
@@ -233,7 +256,22 @@ setPhpIniEntries(php, {
   'session.save_path': sessionDir,
   'session.gc_maxlifetime': '86400',
   'session.cookie_httponly': '1',
+  // Run each script from its own directory, exactly like Apache (see above).
+  auto_prepend_file: prependFile,
 });
+
+/**
+ * PHP-WASM is one runtime: two PHP requests in flight at the same time crash it
+ * and both answer "Internal Server Error". A browser happily requests a page,
+ * an AJAX quick-view and a cart count at once, so PHP work is queued while
+ * static files (images, CSS, JS) keep streaming in parallel.
+ */
+let phpQueue = Promise.resolve();
+function withPhpLock(task) {
+  const run = phpQueue.then(task, task);
+  phpQueue = run.then(() => undefined, () => undefined);
+  return run;
+}
 
 const handler = new PHPRequestHandler({
   php,
@@ -274,13 +312,23 @@ function rewriteAbsoluteUrls(html, origin) {
 /** Missing images get a neutral placeholder instead of a broken-image icon. */
 const IMAGE_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.webp', '.gif', '.svg']);
 
+/**
+ * Files the application asks for that were never uploaded anywhere — every one
+ * of these answers 404 on the live site too (see docs/media-audit.md). Where an
+ * existing photo has the same subject it is substituted; everything else gets
+ * the placeholder.
+ */
+const MISSING_IMAGE_ALIASES = new Map([
+  ['/assets/images/installation.jpg', '/assets/images/services/delivery-installation.jpg'],
+]);
+
 function placeholderImage(label) {
   const text = String(label || 'Woodex').replace(/[<>&"]/g, '').slice(0, 48);
   return Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="600" height="400" viewBox="0 0 600 400">
   <rect width="600" height="400" fill="#eef1f5"/>
   <rect x="0.5" y="0.5" width="599" height="399" fill="none" stroke="#d6dbe3"/>
   <text x="300" y="200" font-family="Arial, Helvetica, sans-serif" font-size="22" fill="#8a94a6" text-anchor="middle">${text}</text>
-  <text x="300" y="232" font-family="Arial, Helvetica, sans-serif" font-size="14" fill="#aab2c0" text-anchor="middle">image not in upload</text>
+  <text x="300" y="232" font-family="Arial, Helvetica, sans-serif" font-size="14" fill="#aab2c0" text-anchor="middle">photo not available</text>
 </svg>`);
 }
 
@@ -300,6 +348,13 @@ const server = createServer(async (req, res) => {
     const alias = LINK_ALIASES.get(url.pathname.replace(/\/+$/, ''));
     if (alias) {
       res.writeHead(302, { Location: `${origin.scheme}://${origin.host}${alias}` });
+      res.end();
+      return;
+    }
+
+    const imageAlias = MISSING_IMAGE_ALIASES.get(url.pathname);
+    if (imageAlias && existsSync(join(docRoot, normalize(imageAlias)))) {
+      res.writeHead(302, { Location: imageAlias, 'Cache-Control': 'no-store' });
       res.end();
       return;
     }
@@ -346,12 +401,12 @@ const server = createServer(async (req, res) => {
     headers['content-length'] = String(body.length);
 
     const query = [target.extraQuery, url.search.replace(/^\?/, '')].filter(Boolean).join('&');
-    const response = await handler.request({
+    const response = await withPhpLock(() => handler.request({
       url: `${origin.scheme}://${origin.host}${target.url}${query ? `?${query}` : ''}`,
       method: req.method,
       headers,
       body,
-    });
+    }));
 
     const notFound = response.httpStatusCode === 404;
     const isSlugRoute = /^\/(categories|blog|projects|shop)\/[^/]+$/.test(url.pathname);
