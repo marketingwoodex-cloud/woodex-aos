@@ -4,6 +4,12 @@ A complete, working full-stack admin system for **Woodex Furniture**: catalogue 
 order book, trade customers, multi-project integrations, deployment history, API keys,
 team roles and a full audit trail — running on one server with one command.
 
+It also runs your **real cPanel database**: `npm run db:import` loads the `woodexbaks`
+dump into a preview store that powers a customer-facing storefront (`/shop`) and a
+live-data admin group (`/live`) — 171 products, 53 categories, 87 FAQs, 5 orders and
+11 quotations of genuine data, with no PHP required. See
+[Live preview on your real database](#live-preview-on-your-real-database).
+
 > **Background:** this repository was created from the intent described in
 > `marketingwoodex-cloud/reimagin-os` (“creative Laravel-based admin with a master plan for
 > different modules, APIs, database, multi-project integration and deployment”). Both source
@@ -44,6 +50,45 @@ npm run dev
 
 Requirements: **Node.js ≥ 22.5** (uses the built-in `node:sqlite` driver — no native build step,
 no external database server).
+
+---
+
+## Live preview on your real database
+
+The dump in `db-source/woodexbaks.sql` (git-ignored — it contains customer PII) is turned
+into a portable SQLite store and served by the same app:
+
+```bash
+python3 tools/db-import/export_snapshot.py db-source/woodexbaks.sql   # dump → snapshot.json
+npm run db:import                                                     # snapshot → server/data/woodex-live.db
+npm start                                                             # /shop and /live are live
+```
+
+| Surface | Route | What it shows |
+| --- | --- | --- |
+| Storefront | `/shop` | Hero, category rail, best sellers, on-sale shelf, filters, search, pagination |
+| Product page | `/shop/p/:slug` | Gallery, breadcrumb, specs, FAQs, related pieces |
+| Live overview | `/live` | Imported totals, top categories, recent orders/quotations, stock to fix |
+| Live catalogue | `/live/catalogue` | All 171 products; edit price, compare-at price, stock and flags |
+| Live orders | `/live/orders` | The 5 real orders with line items and orphan flags |
+| Live quotations | `/live/quotations` | The 11 real quotation requests with their 25 lines |
+
+Notes:
+
+* The storefront is **public**; `/live` uses the same session/RBAC as the rest of the panel
+  (viewer = read-only, manager/admin can edit the imported catalogue).
+* Edits are written to the imported preview database only — your cPanel MySQL is untouched.
+  `docs/database-audit.md` carries the repair SQL to apply upstream.
+* Product images are relative paths (`assets/images/...`) that resolve against
+  `MEDIA_BASE` (default `https://woodexfurniture.pk/`); when an image cannot be fetched the
+  UI falls back to a typographic placeholder rather than a broken image.
+* The importer skips the placeholder hero slide, normalises `SKU: ` prefixes and flags the
+  historical lines whose products were deleted by a re-import (6 order lines, 15 quotation
+  lines). The database file is swapped in atomically, so re-importing while the server runs
+  is safe.
+
+The dump's own `admin` table is **not** used for login — the preview keeps its own bcrypt
+accounts (below), which is why the live `bilal` credential is never required.
 
 ---
 
@@ -280,12 +325,12 @@ activity (audit log)      integrations      settings
 
 ## Testing
 
-Two suites, 46 checks in total.
+Two suites, 82 checks in total.
 
 ```bash
-npm test          # API — 18 integration tests, throwaway database
+npm test          # API — 32 integration tests, throwaway databases
 npm start &       # then, in another shell:
-npm run test:ui   # UI — 28 checks against the running app
+npm run test:ui   # UI — 50 checks against the running app
 ```
 
 Boots the real Express app against a temporary database and covers 18 cases:
@@ -296,20 +341,30 @@ issue + revoke, viewer write-blocking, manager admin-blocking, self-deletion gua
 audit trail.
 
 ```
-# tests 18   # pass 18   # fail 0
+# tests 32   # pass 32   # fail 0
 ```
+
+`server/tests/live.test.js` builds a fixture "live" database with the real importer, then
+exercises the storefront (home payload, category subtree filtering, merchandising flags,
+hidden-product 404s, detail payload with breadcrumb/specs/FAQs, footer content), the live
+admin API (overview totals, filters, PATCH validation, orders/quotations with line items,
+viewer write-blocking) and the graceful "database not imported" path.
 
 The UI suite bundles the real React app with esbuild, mounts it in jsdom and verifies:
 the login form (including the rejected-password path), every route rendering with live data
-from the API, the new-order modal, the theme toggle, and role-based visibility (viewers have no
-create/delete controls and no Team nav; managers can write but cannot manage the team).
+from the API, the new-order modal, the theme toggle, role-based visibility (viewers have no
+create/delete controls and no Team nav; managers can write but cannot manage the team), and the
+imported surfaces: storefront hero/cards/pricing/product pages/filters plus the live overview,
+catalogue, order drawer and quotation pipeline.
 
 ```
 Login page        ✓ renders the sign-in form   ✓ lists the demo accounts
 Form login        ✓ stores the session cookie  ✓ lands on the dashboard
-Routes (admin)    ✓ 10/10 routes render        ✓ new-order modal   ✓ theme toggle
+Routes (admin)    ✓ 14/14 routes render        ✓ new-order modal   ✓ theme toggle
 Role visibility   ✓ viewer read-only           ✓ manager can write  ✓ nav filtered
-28/28 UI checks passed
+Live database     ✓ 171 products listed        ✓ PKR prices        ✓ order drawer
+Storefront        ✓ public /shop               ✓ product pages     ✓ search + sale filter
+50/50 UI checks passed
 ```
 
 Manual smoke test of the running server:
@@ -373,6 +428,9 @@ be pointed at a Laravel implementation without changes.
 
 * **Real:** authentication, RBAC, all CRUD, order totals and stock movement, pagination,
   filtering, audit logging, API key hashing, deployment records.
+* **Real (imported):** the `/shop` catalogue, `/live` overview, catalogue, orders and
+  quotations read the actual `woodexbaks` rows — names, SKUs, prices, stock, customers,
+  quotations and FAQ content are yours, not fixtures.
 * **Simulated:** deployment executions write a release record rather than shipping artefacts;
   integrations toggle their status but hold placeholder credentials; payments and courier
   bookings are represented by data, not third-party calls.

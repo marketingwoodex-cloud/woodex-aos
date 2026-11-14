@@ -23,6 +23,16 @@ const NAV = [
     ],
   },
   {
+    group: 'Live database',
+    items: [
+      { to: '/live', label: 'Live overview', icon: 'pulse' },
+      { to: '/live/catalogue', label: 'Live catalogue', icon: 'box' },
+      { to: '/live/orders', label: 'Live orders', icon: 'receipt' },
+      { to: '/live/quotations', label: 'Quotations', icon: 'edit' },
+      { to: '/shop', label: 'Storefront', icon: 'external', external: true },
+    ],
+  },
+  {
     group: 'Workspace',
     items: [
       { to: '/users', label: 'Team', icon: 'shield', adminOnly: true },
@@ -41,6 +51,10 @@ const TITLES = {
   '/users': 'Team & access',
   '/settings': 'Settings',
   '/account': 'My account',
+  '/live': 'Live overview',
+  '/live/catalogue': 'Live catalogue',
+  '/live/orders': 'Live orders',
+  '/live/quotations': 'Quotations',
 };
 
 function useTheme() {
@@ -112,16 +126,23 @@ export default function AppShell() {
           {groups.map((group) => (
             <div className="nav-group" key={group.group}>
               <p className="nav-group-label">{group.group}</p>
-              {group.items.map((item) => (
-                <NavLink
-                  key={item.to}
-                  to={item.to}
-                  className={({ isActive }) => `nav-item ${isActive ? 'nav-item-active' : ''}`}
-                >
-                  <Icon name={item.icon} size={18} />
-                  <span>{item.label}</span>
-                </NavLink>
-              ))}
+              {group.items.map((item) =>
+                item.external ? (
+                  <a key={item.to} href={item.to} target="_blank" rel="noreferrer" className="nav-item">
+                    <Icon name={item.icon} size={18} />
+                    <span>{item.label}</span>
+                  </a>
+                ) : (
+                  <NavLink
+                    key={item.to}
+                    to={item.to}
+                    className={({ isActive }) => `nav-item ${isActive ? 'nav-item-active' : ''}`}
+                  >
+                    <Icon name={item.icon} size={18} />
+                    <span>{item.label}</span>
+                  </NavLink>
+                ),
+              )}
             </div>
           ))}
         </nav>

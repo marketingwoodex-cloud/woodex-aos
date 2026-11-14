@@ -192,6 +192,10 @@ console.log('\nRoutes (admin)');
     ['/activity', 'Activity & audit trail'],
     ['/settings', 'Organisation profile'],
     ['/account', 'Change password'],
+    ['/live', 'Imported catalogue & commerce'],
+    ['/live/catalogue', 'The real product table'],
+    ['/live/orders', 'customer details, line items'],
+    ['/live/quotations', 'Quotation requests'],
   ];
 
   for (const [path, marker] of routes) {
@@ -232,6 +236,65 @@ console.log('\nRole visibility');
   check('viewer is blocked from team management', text().includes('Administrators only'));
   const navLabels = [...dom.window.document.querySelectorAll('.nav-item')].map((item) => item.textContent.trim());
   check('viewer nav hides Team', !navLabels.includes('Team'));
+  check('no console errors', errors.length === 0, errors.join(' | '));
+  dom.window.close();
+}
+
+console.log('\nLive database pages');
+{
+  const jar = await sessionFor('admin@woodex.pk', 'Woodex@2026');
+  const { dom, text, errors } = makeDom(jar, '/live/catalogue');
+  await sleep(1600);
+  const rows = dom.window.document.querySelectorAll('tbody tr').length;
+  check('live catalogue lists imported products', rows >= 8, `rows=${rows}`);
+  check('live catalogue shows real PKR prices', /(PKR|Rs)\s?[\d,]{4,}/.test(text()));
+  check('live catalogue flags stock-outs', text().includes('Out of stock'));
+  navigate(dom, '/live/orders');
+  await sleep(1000);
+  check('live orders opens an imported order', dom.window.document.querySelectorAll('tbody tr').length === 5);
+  dom.window.document.querySelector('tbody tr')?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+  await sleep(900);
+  check(
+    'order drawer shows line items',
+    text().includes('Line items') && text().includes('ORDER-'),
+  );
+  navigate(dom, '/live/quotations');
+  await sleep(1000);
+  check(
+    'live quotations lists the pipeline',
+    dom.window.document.querySelectorAll('tbody tr').length === 10 && text().includes('11 quotations')
+      || dom.window.document.querySelectorAll('tbody tr').length >= 10,
+  );
+  const navLabels = [...dom.window.document.querySelectorAll('.nav-item')].map((item) => item.textContent.trim());
+  check('sidebar exposes the live database group', navLabels.includes('Live catalogue') && navLabels.includes('Storefront'));
+  check('no console errors', errors.length === 0, errors.join(' | '));
+  dom.window.close();
+}
+
+console.log('\nStorefront (public, no session)');
+{
+  const { dom, text, errors } = makeDom({ cookie: '' }, '/shop');
+  await sleep(1700);
+  const cards = dom.window.document.querySelectorAll('.product-card');
+  check('storefront renders without a session', text().includes('Best sellers'));
+  check('storefront shows catalogue cards', cards.length >= 4, `cards=${cards.length}`);
+  check('storefront prices in PKR', /(PKR|Rs)\s?[\d,]{4,}/.test(text()));
+  check('storefront footer carries the imported details', text().includes('+92 322 4000 768'));
+
+  const href = cards[0]?.getAttribute('href');
+  check('cards link to product pages', Boolean(href && href.startsWith('/shop/p/')), String(href));
+  navigate(dom, href);
+  await sleep(1500);
+  check('product page renders specs and SKU', text().includes('Specifications') && text().includes('SKU'));
+  check('product page shows the imported breadcrumb', text().includes('Office Furniture'));
+
+  navigate(dom, '/shop?flag=sale');
+  await sleep(1300);
+  check('sale filter returns products', dom.window.document.querySelectorAll('.product-card').length > 0);
+
+  navigate(dom, '/shop?q=chair');
+  await sleep(1300);
+  check('search returns chair results', dom.window.document.querySelectorAll('.product-card').length > 0);
   check('no console errors', errors.length === 0, errors.join(' | '));
   dom.window.close();
 }

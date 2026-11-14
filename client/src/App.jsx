@@ -14,6 +14,12 @@ import Users from './pages/Users.jsx';
 import Activity from './pages/Activity.jsx';
 import Settings from './pages/Settings.jsx';
 import Account from './pages/Account.jsx';
+import Storefront from './pages/shop/Storefront.jsx';
+import ProductPage from './pages/shop/ProductPage.jsx';
+import LiveOverview from './pages/live/LiveOverview.jsx';
+import LiveCatalogue from './pages/live/LiveCatalogue.jsx';
+import LiveOrders from './pages/live/LiveOrders.jsx';
+import LiveQuotations from './pages/live/LiveQuotations.jsx';
 import NotFound from './pages/NotFound.jsx';
 
 function Splash() {
@@ -40,6 +46,8 @@ function AppRoutes() {
   return (
     <Routes>
       <Route path="/login" element={loading ? <Splash /> : user ? <Navigate to="/dashboard" replace /> : <Login />} />
+      <Route path="/shop" element={<Storefront />} />
+      <Route path="/shop/p/:slug" element={<ProductPage />} />
       <Route
         element={
           <RequireAuth>
@@ -58,6 +66,10 @@ function AppRoutes() {
         <Route path="/activity" element={<Activity />} />
         <Route path="/settings" element={<Settings />} />
         <Route path="/account" element={<Account />} />
+        <Route path="/live" element={<LiveOverview />} />
+        <Route path="/live/catalogue" element={<LiveCatalogue />} />
+        <Route path="/live/orders" element={<LiveOrders />} />
+        <Route path="/live/quotations" element={<LiveQuotations />} />
         <Route path="*" element={<NotFound />} />
       </Route>
     </Routes>

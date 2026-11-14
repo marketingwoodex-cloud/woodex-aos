@@ -20,6 +20,8 @@ import projectRoutes from './routes/projects.js';
 import userRoutes from './routes/users.js';
 import activityRoutes from './routes/activity.js';
 import settingsRoutes from './routes/settings.js';
+import shopRoutes from './routes/shop.js';
+import liveRoutes from './routes/live.js';
 import { logActivity } from './lib/activity.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -51,6 +53,9 @@ app.get('/api/health', (_req, res) => {
 
 app.use('/api/auth', authRoutes);
 
+// Customer-facing storefront — public, no session required.
+app.use('/api/shop', shopRoutes);
+
 // Everything below requires a session.
 app.use('/api/dashboard', requireAuth, dashboardRoutes);
 app.use('/api/products', requireAuth, productRoutes);
@@ -60,6 +65,7 @@ app.use('/api/projects', requireAuth, projectRoutes);
 app.use('/api/users', requireAuth, userRoutes);
 app.use('/api/activity', requireAuth, activityRoutes);
 app.use('/api/settings', requireAuth, settingsRoutes);
+app.use('/api/live', requireAuth, liveRoutes);
 
 app.use('/api', (_req, res) => {
   res.status(404).json({ error: 'Endpoint not found.' });
