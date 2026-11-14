@@ -2,7 +2,7 @@
 
 ## Prepared
 
-- Extracted the application into `site/` so that the website files can be published separately from Git metadata and historical archives.
+- Moved the staging application to the repository root for a root-oriented deployment. Historical archive files and the downloadable ZIP were removed from the current tree; they remain in Git history and existing deployments. A private checkout and application-only export remain safer than a public checkout.
 - Removed archived sessions, error logs, old domain validation files, PHP configuration overrides and an unsafe legacy CKEditor upload endpoint from the publishable tree.
 - Replaced the three archived database connection files with a shared staging-only bootstrap. It requires private configuration outside the document root, rejects non-staging HTTP hosts, and fails closed when configuration or the database is missing.
 - Added direct-entry authentication guards for admin PHP endpoints, secure session cookie settings and login session ID regeneration. These controls are not a substitute for a full security review.

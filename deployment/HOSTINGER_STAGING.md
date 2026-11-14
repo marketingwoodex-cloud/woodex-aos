@@ -5,8 +5,8 @@
 
 ## Critical safety rules
 
-- Do **not** deploy the repository root into any web-accessible directory. The existing repository history and four archive files contain historical credentials and session data. A Git checkout also contains `.git`. Rotate exposed credentials and invalidate old sessions; restricting the new `site/` tree does not remove secrets from old Git history or copies.
-- Only publish the contents of `site/` to the **confirmed staging document root**. Do not target the existing production directory or database. Back up the staging target before each copy; the publish script overwrites matching files and does not remove old files.
+- Do **not** deploy the repository root into any web-accessible directory. The repository history contains historical credentials and session data, even after the archives were removed from the current branch. A Git checkout also contains `.git`. Rotate exposed credentials and invalidate old sessions.
+- Only publish the application files to the **confirmed staging document root**. Do not target the existing production directory or database. Back up the staging target before each copy; the publish script overwrites matching files and does not remove old files.
 - Use Hostinger's directory password protection or another verified access control for the **entire staging site** before making it reachable. The included admin checks are defense in depth, not a full security audit. Do not put real customer data in staging.
 - Checkout integrity, CSRF, roles, uploads and other legacy security issues remain open. This package is for staging testing, not production approval. Real email is disabled in the shared SMTP helper; test integrations only with dedicated sandbox services.
 - Back up the live site and database independently. Do not configure automatic production deployment from the testing branch.
@@ -29,7 +29,7 @@ Hostinger documents GitHub OAuth through **Websites → Dashboard → Advanced �
 
 1. Determine the actual document root for `staging.blackibex.net` in hPanel and take a backup. Verify it is not the live site's root.
 2. Configure the Git checkout in a **private directory outside every web document root**, if your Hostinger plan permits it. The checkout contains the historical archive files, which must remain private.
-3. Copy only `site/` into the staging document root. From a trusted SSH shell, after verifying the exact path and backup, you may run:
+3. Export only the committed application files into the staging document root. From a trusted SSH shell, after verifying the exact path and backup, you may run:
 
    ```sh
    WOODEX_CONFIRM_STAGING=staging.blackibex.net bash deployment/publish-staging.sh /absolute/path/to/staging/document-root
@@ -43,7 +43,7 @@ Hostinger's [Git deployment guide](https://support.hostinger.com/en/articles/158
 ## 3. Configure PHP and secrets
 
 - Select a supported PHP 8.2+ runtime with `mysqli`/mysqlnd and `mbstring`; verify DOM, GD, cURL and other extensions for PDF/media features. Enable Apache rewrite and `.htaccess` overrides. Test with the actual Hostinger PHP/database versions.
-- `site/config/bootstrap.php` looks for `.woodex-staging.php` **two directory levels above the published document root** by default. For a document root `/example/domain/public_html`, the default is `/example/.woodex-staging.php`. Alternatively set `WDX_CONFIG_FILE` to an absolute private path via server configuration. The file must be outside the web document root; never commit it.
+- `config/bootstrap.php` looks for `.woodex-staging.php` **two directory levels above the published document root** by default. For a document root `/example/domain/public_html`, the default is `/example/.woodex-staging.php`. Alternatively set `WDX_CONFIG_FILE` to an absolute private path via server configuration. The file must be outside the web document root; never commit it.
 - Copy `deployment/staging-config.example.php` to that private path on the host, fill it with the dedicated staging database details, and restrict file permissions so only the PHP process/account can read it. The application fails closed with HTTP 503 when config or DB is unavailable. Do not send credentials, API tokens or passwords through chat.
 - Confirm the PHP session save path is writable and outside web-accessible directories. Session cookies require HTTPS. Turn off `display_errors` on the host and log errors privately. `robots.txt` and the `X-Robots-Tag` header request no indexing; neither is access control.
 - Create a new staging administrator only **after** importing the filtered database. From the private checkout on the host, explicitly point the CLI at the same private config used by the published site:

@@ -1,10 +1,7 @@
 # Woodex AOS
 
-The four `public_html.part*.zip` files are historical RAR volumes. They contain sensitive historical configuration and must **not** be deployed to a web-accessible directory.
+The staging application is in the repository root for `staging.blackibex.net`. See `deployment/HOSTINGER_STAGING.md` for safe deployment and isolated database setup.
 
-- `site/` — extracted application prepared for **staging only** at `staging.blackibex.net`.
-- `deployment/HOSTINGER_STAGING.md` — Hostinger Git, isolated database, secret configuration and verification instructions.
-- `preview/` — local preview setup and media audit.
-- `PREVIEW_STATUS_AND_REMAINING_WORK.md` and `PROJECT_MASTER_REPORT.md` — findings and outstanding work.
+Historical archive files were removed from the current tree, but remain in Git history and previously deployed checkouts. They contain sensitive credentials and sessions: rotate credentials, invalidate sessions, and keep Git metadata outside the public document root.
 
-This repository has known security and checkout-integrity issues and is **not production-ready**. The staging package fails closed without a private configuration file, does not import customer data, and must be protected by a site-wide password on the hosting account. No database credentials or SQL export should be committed.
+This application has known security and checkout-integrity issues and is not production-ready. Protect the entire staging site and never commit database credentials or the SQL export.

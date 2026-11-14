@@ -2,7 +2,7 @@
 // Run from a trusted shell after importing a sanitized staging database.
 // Never put this file in the web document root or pass passwords in arguments.
 if (PHP_SAPI !== 'cli') { http_response_code(403); exit; }
-require __DIR__ . '/../site/config/bootstrap.php';
+require __DIR__ . '/../config/bootstrap.php';
 $username = 'stagingadmin';
 $check = $conn->prepare('SELECT id FROM users WHERE username = ? LIMIT 1');
 $check->bind_param('s', $username);

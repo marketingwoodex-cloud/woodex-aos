@@ -61,6 +61,7 @@ def filtered_sql(source):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('sql', type=Path, help='Path to the supplied MySQL export (never committed)')
+    parser.add_argument('--archive-dir', type=Path, default=ROOT, help='Private directory containing the four original archive parts')
     args = parser.parse_args()
     if RUNTIME.exists():
         sys.exit('preview/runtime already exists. Back it up or remove it explicitly before preparing again.')
@@ -70,14 +71,14 @@ def main():
     if not unrar:
         sys.exit('Install unrar (RAR 5 support required) and ensure it is on PATH.')
     for part in range(1, 5):
-        if not (ROOT / f'public_html.part{part}.zip').is_file():
+        if not (args.archive_dir / f'public_html.part{part}.zip').is_file():
             sys.exit('Missing archive part ' + str(part))
     RUNTIME.mkdir(mode=0o700)
     try:
         archive = RUNTIME / 'archive'
         archive.mkdir()
         for part in range(1, 5):
-            os.symlink(ROOT / f'public_html.part{part}.zip', archive / f'public_html.part{part}.rar')
+            os.symlink((args.archive_dir / f'public_html.part{part}.zip').resolve(), archive / f'public_html.part{part}.rar')
         extract = RUNTIME / 'extract'
         extract.mkdir()
         subprocess.run([unrar, 'x', '-o+', '-idq', str(archive / 'public_html.part1.rar'), str(extract) + '/'], check=True)

@@ -2,10 +2,13 @@
 /preview/runtime/
 # Staging secrets and runtime data must never enter Git.
 .woodex-staging.php
-site/sessions/
-site/**/error_log
-site/.user.ini
-site/php.ini
+/sessions/
+**/error_log
+/.user.ini
+/php.ini
 
 __pycache__/
 *.py[cod]
+
+/public_html.part*.zip
+/downloads/*.zip

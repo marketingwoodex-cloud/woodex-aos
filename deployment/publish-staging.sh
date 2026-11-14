@@ -19,7 +19,14 @@ if [[ -e "$TARGET/.git" ]] || [[ -n "$(find "$TARGET" -type l -print -quit)" ]];
   echo 'Refusing a Git checkout or a target containing symbolic links.' >&2
   exit 2
 fi
-# This is deliberately manual: hPanel Git checks out the whole repository,
-# including sensitive historical archives. Never place the checkout in webroot.
-cp -R "$ROOT/site/." "$TARGET/"
-echo 'Staging application files copied. Verify password protection and the domain before testing.'
+# Export only tracked application files, never Git metadata or project tooling.
+# The export is from the committed HEAD; commit changes before publishing.
+git -C "$ROOT" archive HEAD | tar -x -C "$TARGET" \
+  --exclude='./deployment' --exclude='deployment' \
+  --exclude='./preview' --exclude='preview' \
+  --exclude='./downloads' --exclude='downloads' \
+  --exclude='./database' --exclude='database' \
+  --exclude='.gitignore' --exclude='README.md' \
+  --exclude='PROJECT_MASTER_REPORT.md' --exclude='PREVIEW_STATUS_AND_REMAINING_WORK.md' \
+  --exclude='public_html.part*.zip'
+echo 'Committed staging application files copied. Verify password protection and the domain before testing.'
