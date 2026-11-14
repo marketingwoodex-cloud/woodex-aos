@@ -191,9 +191,13 @@ application bugs:
    file handling are switched off. The runtime is also recreated per request
    (`php.enableRuntimeRotation({ maxRequests: 1 })`; `PHP_MAX_REQUESTS=25` for speed).
 2. **The audit crawler logged itself out.** `logout.php` sits in the admin URL list, so everything
-   after it looked unauthenticated (21 false `401`s). Logout is now crawled last; the route audit is
-   back to **453 × 200, 4 × 404, 1 × 500, 1 × 405, 1 × 400 over 460 URLs** — identical to the
-   pre-hardening baseline, i.e. the security layer changes nothing for a legitimate user.
+   after it looked unauthenticated (21 false `401`s). Logout is now crawled last.
+   The route audit of the patched application reads **449 × 200, 10 × 404, 1 × 500, 1 × 405, 1 × 400
+   over 462 URLs**. Six of the ten 404s are deliberate: `connection.php`, `config/connection.php`,
+   `auth_guard.php`, `login_throttle.php`, `session.php` and `connection.local.php` are include-only
+   files and are now refused both by `.htaccess` and by the runner (they are meant to be `require`d,
+   never requested). The other four are the detail scripts that need `?id=` (unchanged), and the single
+   500 is the pre-existing `product-card.php` bug.
 
 ## 7. What only you can fix (production)
 

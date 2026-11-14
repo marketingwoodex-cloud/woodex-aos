@@ -1,7 +1,21 @@
 <?php
-// Local run only: route prepared statements through escaped text queries.
-// See tools/php-run/shims/wdx_mysqli.php — remove this line for production.
-require_once __DIR__ . '/wdx_mysqli.php';
+// Credentials do not live in this file. They are read from
+// <document root>/config/connection.local.php (git-ignored) or, failing that,
+// from the LIVE_DB_* / DB_* environment variables. See docs/deploy-hostinger.md.
+$__wdx_docroot = rtrim((string)($_SERVER['DOCUMENT_ROOT'] ?? ''), '/');
+$__wdx_local_cfg = $__wdx_docroot !== '' ? $__wdx_docroot . '/config/connection.local.php' : '';
+if ($__wdx_local_cfg === '' || !is_file($__wdx_local_cfg)) {
+    $__wdx_local_cfg = __DIR__ . '/connection.local.php';
+}
+if (is_file($__wdx_local_cfg)) {
+    require_once $__wdx_local_cfg;
+}
+
+// Local runner only: the shim is loaded by connection.local.php when needed; a
+// stray copy next to this file is honoured too. It is never deployed to the host.
+if (is_file(__DIR__ . '/wdx_mysqli.php')) {
+    require_once __DIR__ . '/wdx_mysqli.php';
+}
 
 // Database configuration with automatic environment detection.
 // Localhost uses local credentials; live host uses live credentials.
@@ -44,7 +58,8 @@ foreach ($candidates as $cfg) {
     if (empty($cfg['host']) || empty($cfg['user']) || empty($cfg['name'])) {
         continue;
     }
-    $tmp = @new WdxMysqli($cfg['host'], $cfg['user'], (string)$cfg['pass'], $cfg['name']);
+    $driver = class_exists('WdxMysqli') ? 'WdxMysqli' : 'mysqli';
+    $tmp = @new $driver($cfg['host'], $cfg['user'], (string)$cfg['pass'], $cfg['name']);
     if (!$tmp->connect_error) {
         $conn = $tmp;
         $selectedDb = $cfg;

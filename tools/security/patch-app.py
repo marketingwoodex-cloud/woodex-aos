@@ -332,8 +332,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 
 CONNECTION_FILES = [
+    DOCROOT / "connection.php",                            # third copy, included by the storefront
     DOCROOT / "config" / "connection.php",
-    DOCROOT / "lbpanel" / "config" / "connection.php",   # second copy, included by most admin scripts
+    DOCROOT / "lbpanel" / "config" / "connection.php",     # included by most admin scripts
 ]
 
 
@@ -345,7 +346,7 @@ def patch_connection(path: Path, apply: bool) -> bool:
     match = re.search(
         r"// Local run only: route prepared statements through escaped text queries\.\n"
         r"// See tools/php-run/shims/wdx_mysqli\.php — remove this line for production\.\n"
-        r"require_once __DIR__ \. '/(\.\./)+wdx_mysqli\.php';\n",
+        r"require_once __DIR__ \. '/(\.\./)*wdx_mysqli\.php';\n",
         text,
     )
     if match is None:
@@ -353,21 +354,25 @@ def patch_connection(path: Path, apply: bool) -> bool:
         return False
     shim_rel = match.group(0).split("require_once __DIR__ . '")[1].split("'")[0]
     old_shim = match.group(0)
-    new_shim = """// Credentials do not live in this file: create config/connection.local.php
-// (excluded from git) with WDX_DB_* constants, or set the LIVE_DB_* / DB_*
-// environment variables on the host. See docs/deploy-hostinger.md.
-$__wdx_local_cfg = __DIR__ . '/connection.local.php';
+    new_shim = """// Credentials do not live in this file. They are read from
+// <document root>/config/connection.local.php (git-ignored) or, failing that,
+// from the LIVE_DB_* / DB_* environment variables. See docs/deploy-hostinger.md.
+$__wdx_docroot = rtrim((string)($_SERVER['DOCUMENT_ROOT'] ?? ''), '/');
+$__wdx_local_cfg = $__wdx_docroot !== '' ? $__wdx_docroot . '/config/connection.local.php' : '';
+if ($__wdx_local_cfg === '' || !is_file($__wdx_local_cfg)) {
+    $__wdx_local_cfg = __DIR__ . '/connection.local.php';
+}
 if (is_file($__wdx_local_cfg)) {
     require_once $__wdx_local_cfg;
 }
 
-// Local runner only: route prepared statements through escaped text queries
-// when the shim happens to be present. It is never deployed to the host.
-if (is_file(__DIR__ . '/../wdx_mysqli.php')) {
-    require_once __DIR__ . '/../wdx_mysqli.php';
+// Local runner only: the shim is loaded by connection.local.php when needed; a
+// stray copy next to this file is honoured too. It is never deployed to the host.
+if (is_file(__DIR__ . '/__WDX_REL__wdx_mysqli.php')) {
+    require_once __DIR__ . '/__WDX_REL__wdx_mysqli.php';
 }
 """
-    new_shim = new_shim.replace("__DIR__ . '/../wdx_mysqli.php'", f"__DIR__ . '/{shim_rel}'")
+    new_shim = new_shim.replace("__WDX_REL__", shim_rel.lstrip("/"))
     text = text.replace(old_shim, new_shim, 1)
 
     text = text.replace(

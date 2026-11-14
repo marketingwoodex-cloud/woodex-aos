@@ -225,7 +225,13 @@ RewriteRule .* - [F]
 #     Session files, dumps and fatal-error logs must never be
 #     reachable, even if something recreates them by accident.
 # ---------------------------------------------------------
-<FilesMatch "^(error_log|php_errors?\.log|\.user\.ini|php\.ini)$">
+<FilesMatch "^(error_log|php_errors?\.log|\.user\.ini|php\.ini|connection_local\.php)$">
+  Require all denied
+</FilesMatch>
+
+# Include-only files: they are meant to be required by other scripts, never
+# requested directly.
+<FilesMatch "^(connection|auth_guard|login_throttle|session|connection\.local)\.php$">
   Require all denied
 </FilesMatch>
 

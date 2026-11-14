@@ -22,8 +22,7 @@ db-source/
 /php-source/quarantine/
 /php-source/public_html/sessions/
 /php-source/public_html/wdx_mysqli.php
-/php-source/public_html/config/connection.local.php
-/php-source/public_html/lbpanel/config/connection.local.php
+/php-source/public_html/**/connection.local.php
 /php-source/public_html/**/*.orig
 /php-source/public_html/**/*.bak
 /php-source/public_html/**/*.sql

@@ -348,7 +348,7 @@ function sessionIdFromRequest(req, res) {
  * `sessions/`. On the cPanel host Apache serves all of them (see
  * tools/security/README.md for the .htaccess that fixes that).
  */
-const BLOCKED_FILE_RX = /(^|\/)(error_log|php_errors?\.log|\.env[^/]*|\.user\.ini|php\.ini|\.htaccess|\.htpasswd|composer\.(json|lock)|web\.config)$/i;
+const BLOCKED_FILE_RX = /(^|\/)(error_log|php_errors?\.log|\.env[^/]*|\.user\.ini|php\.ini|\.htaccess|\.htpasswd|composer\.(json|lock)|web\.config|connection\.php|connection\.local\.php|auth_guard\.php|login_throttle\.php|session\.php|wdx_mysqli\.php)$/i;
 const BLOCKED_EXT_RX = /\.(log|orig|bak|backup|sql|sqlite|db|ini|zip|tar|gz|tgz|env|sh|py|mjs|yml|yaml)$/i;
 
 function isBlockedPath(pathname) {
